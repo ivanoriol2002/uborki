@@ -110,7 +110,9 @@
 
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
-const API = new URLSearchParams(location.search).get('api');
+// адрес скрипта: из ссылки (?api=…), а если его там нет — этот (для кнопки «Открыть» в профиле бота)
+const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbwN1T1SNz2RzLm78sPtLvoII0GsWTnXn5csP1zV5c478cs16OLkX_9iCMtr4XCz6ze8/exec';
+const API = new URLSearchParams(location.search).get('api') || API_DEFAULT;
 let state = null;                     // данные с сервера
 const ui = { open: {}, month: '', sel: '' };
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
