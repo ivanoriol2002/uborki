@@ -6,21 +6,31 @@
 <title>График уборок</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
+  /* своя палитра: светлая и тёмная (тема берётся из Telegram) */
   :root {
-    --bg: var(--tg-theme-bg-color, #ffffff);
-    --bg2: var(--tg-theme-secondary-bg-color, #f2f3f5);
-    --text: var(--tg-theme-text-color, #1c1c1e);
-    --hint: var(--tg-theme-hint-color, #8a8a8e);
-    --link: var(--tg-theme-link-color, #2a7ae2);
-    --btn: var(--tg-theme-button-color, #2a7ae2);
-    --btn-text: var(--tg-theme-button-text-color, #ffffff);
-    --green: #2e9d4f; --orange: #e8891c; --red: #d64545; --grey: #b0b3b8; --blue: #3b82f6;
+    color-scheme: light;
+    --page: #f2f3f7; --bg: #ffffff; --bg2: #f0f1f5; --line: #e9eaef;
+    --text: #16181d; --hint: #868a94; --link: #2f6fe4;
+    --btn: #3b82f6; --btn-text: #ffffff;
+    --green: #2ea05a; --orange: #e8891c; --red: #e05252; --grey: #b4b8c0; --blue: #3b82f6;
+    --ok-bg: #e6f5ea; --ok-fg: #1f6b35; --info-bg: #e4edfd; --info-fg: #1d4f9a;
+    --chg-bg: #fdeed9; --chg-fg: #8a4b08; --bad-bg: #fde6e6; --bad-fg: #a12f2f; --toast: #23252b;
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #121318; --bg: #1d1f26; --bg2: #2a2d35; --line: #2a2d34;
+    --text: #eceef3; --hint: #8f95a1; --link: #7aa7ff;
+    --btn: #4a8cff; --btn-text: #ffffff;
+    --green: #3fbf6f; --orange: #f0a04b; --red: #f06b6b; --grey: #5b606b; --blue: #4a8cff;
+    --ok-bg: rgba(63,191,111,.16); --ok-fg: #86dba3; --info-bg: rgba(74,140,255,.18); --info-fg: #a9c6ff;
+    --chg-bg: rgba(240,160,75,.17); --chg-fg: #f5c28a; --bad-bg: rgba(240,107,107,.17); --bad-fg: #ffadad; --toast: #34373f;
+  }
+  a { color: var(--link); text-decoration: none; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg2); color: var(--text);
+  body { margin: 0; background: var(--page); color: var(--text);
     font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px; background: var(--bg2); }
+    padding: 10px 16px; background: var(--page); }
   header h1 { margin: 0; font-size: 20px; }
   header .right { display: flex; align-items: center; gap: 12px; }
   header button { border: 0; background: none; color: var(--link); font-size: 15px; padding: 6px 0; }
@@ -60,18 +70,18 @@
   .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .apt { font-size: 22px; font-weight: 700; }
   .badge { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
-    background: #e3f4e1; color: #1f6b35; }
-  .urgent .badge { background: #dceafd; color: #1d4f9a; }
-  .changed .badge { background: #fde5c8; color: #8a4b08; }
+    background: var(--ok-bg); color: var(--ok-fg); }
+  .urgent .badge { background: var(--info-bg); color: var(--info-fg); }
+  .changed .badge { background: var(--chg-bg); color: var(--chg-fg); }
   .times { display: flex; gap: 16px; margin-top: 8px; font-size: 14px; }
   .times b { font-size: 16px; }
-  .ivan { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #fff4e5; color: #6b3d00; }
+  .ivan { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--chg-bg); color: var(--chg-fg); }
   .guest { margin-top: 10px; }
   .guest .lbl { font-size: 12px; color: var(--hint); }
   .guest .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .guest a { color: var(--link); text-decoration: none; white-space: nowrap; }
-  .steps { margin-top: 12px; border-top: 1px solid var(--bg2); padding-top: 4px; }
-  .step { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bg2); }
+  .steps { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+  .step { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .step:last-child { border-bottom: 0; }
   .num { flex: 0 0 24px; height: 24px; border-radius: 12px; background: var(--bg2); color: var(--hint);
     font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
@@ -79,8 +89,8 @@
   .body { flex: 1; min-width: 0; }
   .title { font-weight: 600; }
   .muted { color: var(--hint); font-size: 13px; }
-  .warn { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #fde2e2; color: #9b2c2c; font-size: 13px; }
-  .note { margin-top: 6px; font-size: 13px; color: #8a4b08; }
+  .warn { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: var(--bad-bg); color: var(--bad-fg); font-size: 13px; }
+  .note { margin-top: 6px; font-size: 13px; color: var(--chg-fg); }
   .btn { display: block; width: 100%; margin-top: 8px; border: 0; border-radius: 10px; padding: 11px;
     font-size: 15px; font-weight: 600; background: var(--btn); color: var(--btn-text); }
   .btn.sec { background: var(--bg2); color: var(--text); }
@@ -90,7 +100,10 @@
   .inline .btn { width: auto; margin: 0; padding: 0 14px; }
   input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg2); border: 0;
     border-radius: 10px; padding: 10px; }
-  input[type=time] { min-height: 42px; }
+  input[type=time], input[type=date] { min-height: 42px; -webkit-appearance: none; appearance: none; min-width: 0;
+    display: block; text-align: left; }
+  input[type=time]::-webkit-date-and-time-value, input[type=date]::-webkit-date-and-time-value { text-align: left; }
+  input::placeholder, textarea::placeholder { color: var(--hint); }
   .inline input[type=time] { flex: 0 0 120px; width: 120px; }
   textarea { min-height: 64px; resize: vertical; }
   .buy, .rem { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; gap: 8px; }
@@ -99,18 +112,18 @@
   .file { font-size: 14px; }
   .empty { text-align: center; color: var(--hint); padding: 16px 0; }
   #toast { position: fixed; left: 12px; right: 12px; bottom: 16px; padding: 12px 14px; border-radius: 12px;
-    background: #222; color: #fff; font-size: 14px; display: none; z-index: 10; }
+    background: var(--toast); color: #fff; font-size: 14px; display: none; z-index: 10; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
   #toast.err { background: var(--red); }
 
   /* режим Ивана */
   body.owner main { padding-bottom: 84px; }
   body.owner #toast { bottom: 80px; }
   #tabs { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--bg);
-    border-top: 1px solid var(--bg2); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+    border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
   body.owner #tabs { display: flex; }
   #tabs button { flex: 1; border: 0; background: none; color: var(--hint); font-size: 11px; padding: 4px 0;
     display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  #tabs button span { font-size: 20px; line-height: 22px; }
+  #tabs svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   #tabs button.on { color: var(--btn); font-weight: 600; }
   .seg { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .seg button { border: 0; background: var(--bg); color: var(--text); border-radius: 16px; padding: 6px 12px; font-size: 14px; }
@@ -118,9 +131,9 @@
   .kv { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; }
   .kv .muted { font-size: 14px; }
   .chip-s { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg2); }
-  .st-ok { background: #e3f4e1; color: #1f6b35; } .st-warn { background: #fde5c8; color: #8a4b08; }
-  .st-off { background: var(--bg2); color: var(--hint); } .st-bad { background: #fde2e2; color: #9b2c2c; }
-  .bk { padding: 10px 0; border-bottom: 1px solid var(--bg2); }
+  .st-ok { background: var(--ok-bg); color: var(--ok-fg); } .st-warn { background: var(--chg-bg); color: var(--chg-fg); }
+  .st-off { background: var(--bg2); color: var(--hint); } .st-bad { background: var(--bad-bg); color: var(--bad-fg); }
+  .bk { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .bk:last-child { border-bottom: 0; }
   .bk .r1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .bk .r2, .bk .r3 { font-size: 14px; margin-top: 2px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -130,14 +143,16 @@
   .nums b { display: block; font-size: 16px; }
   .nums small { color: var(--hint); font-size: 12px; }
   table.t { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
-  table.t td, table.t th { padding: 5px 4px; text-align: right; border-top: 1px solid var(--bg2); }
+  table.t td, table.t th { padding: 5px 4px; text-align: right; border-top: 1px solid var(--line); }
   table.t td:first-child, table.t th:first-child { text-align: left; }
   table.t th { color: var(--hint); font-weight: 500; font-size: 12px; }
   .stat { font-size: 14px; margin-top: 4px; }
   .rcpt { border: 0; background: var(--bg2); color: var(--link); border-radius: 8px; padding: 4px 8px; font-size: 13px; margin: 4px 4px 0 0; }
   select { width: 100%; font: inherit; color: var(--text); background: var(--bg2); border: 0; border-radius: 10px; padding: 10px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  label.f { font-size: 12px; color: var(--hint); display: block; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .grid2 > * { min-width: 0; }
+  label.f { font-size: 12px; color: var(--hint); display: block; min-width: 0; }
+  details summary { cursor: pointer; }
   label.f input, label.f select, label.f textarea { margin-top: 3px; }
 </style>
 </head>
@@ -154,8 +169,14 @@ const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbwN1T1SNz2RzLm78sPt
 const API = new URLSearchParams(location.search).get('api') || API_DEFAULT;
 let state = null;                     // данные с сервера
 const ui = { open: {}, month: '', sel: '', tab: 'clean', asMaid: false, bkView: 'future', bkApt: '' };
-const TABS = [['clean', '🧹', 'Уборки'], ['bookings', '📅', 'Брони'], ['money', '💰', 'Деньги'],
-  ['income', '📈', 'Доходы'], ['more', '⚙️', 'Ещё']];
+const ICON = {
+  clean: '<path d="M3 11l9-7 9 7v8a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2z"/>',
+  bookings: '<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  money: '<rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 10h18M15.5 15h2"/>',
+  income: '<path d="M5 20v-6M12 20V9M19 20V4"/>',
+  more: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+};
+const TABS = [['clean', 'Уборки'], ['bookings', 'Брони'], ['money', 'Деньги'], ['income', 'Доходы'], ['more', 'Ещё']];
 const isOwner = () => state && state.role === 'owner';
 const ownerView = () => isOwner() && !ui.asMaid;
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
@@ -164,7 +185,17 @@ const MONTHS_GEN = ['января', 'февраля', 'марта', 'апрел�
   'ноября', 'декабря'];
 const WEEKDAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
-if (tg) { tg.ready(); tg.expand(); }
+function applyTheme() {
+  const dark = tg && tg.colorScheme ? tg.colorScheme === 'dark'
+    : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  const page = dark ? '#121318' : '#f2f3f7', bar = dark ? '#1d1f26' : '#ffffff';
+  try { tg.setHeaderColor(page); } catch (e) {}
+  try { tg.setBackgroundColor(page); } catch (e) {}
+  try { tg.setBottomBarColor(bar); } catch (e) {}
+}
+applyTheme();
+if (tg) { tg.ready(); tg.expand(); try { tg.onEvent('themeChanged', applyTheme); } catch (e) {} }
 
 /* ---------- мелочи ---------- */
 function esc(s) {
@@ -588,7 +619,7 @@ function tabMore(o) {
   const st = o.settings;
   return '<div class="box"><div class="title">Данные</div><div class="kv"><span class="muted">Обновлено</span><span>' + esc(o.lastSync || '—') + '</span></div>' +
     (o.errors ? '<div class="warn">' + esc(o.errors) + '</div>' : '<div class="muted">Ошибок нет</div>') +
-    '<button class="btn" data-act="syncNow">🔄 Обновить брони сейчас</button><div class="muted">Забирает брони с Авито и Суточно, пересобирает графики. До минуты.</div></div>' +
+    '<button class="btn" data-act="syncNow">Обновить брони сейчас</button><div class="muted">Забирает брони с Авито и Суточно, пересобирает графики. До минуты.</div></div>' +
     '<div class="box"><div class="title">Настройки</div><div class="form">' +
     '<div class="grid2"><label class="f">Выезд до<input type="time" id="st-checkout" value="' + esc(st.checkout) + '"></label>' +
     '<label class="f">Заезд с<input type="time" id="st-checkin" value="' + esc(st.checkin) + '"></label></div>' +
@@ -603,9 +634,9 @@ function renderTabs() {
   document.body.classList.toggle('owner', isOwner());
   const nav = document.getElementById('tabs');
   if (!isOwner()) { nav.innerHTML = ''; return; }
-  nav.innerHTML = TABS.map(t => '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '"><span>' + t[1] +
-    '</span>' + t[2] + '</button>').join('');
-  document.querySelector('header h1').textContent = TABS.find(t => t[0] === ui.tab)[2] + (ui.asMaid && ui.tab === 'clean' ? ' · как горничная' : '');
+  nav.innerHTML = TABS.map(t => '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '"><svg viewBox="0 0 24 24">' +
+    ICON[t[0]] + '</svg>' + t[1] + '</button>').join('');
+  document.querySelector('header h1').textContent = TABS.find(t => t[0] === ui.tab)[1] + (ui.asMaid && ui.tab === 'clean' ? ' · как горничная' : '');
 }
 
 /* ---------- напоминания на выбранный день ---------- */
