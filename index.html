@@ -268,6 +268,11 @@
   .bar { height: 10px; border-radius: 999px; background: var(--bg2); overflow: hidden; }
   .bar i { display: block; height: 100%; border-radius: inherit; background: var(--btn); }
   .guide li { margin: 6px 0; }
+  /* текущий месяц в «Доходах» — выделен */
+  .box.cur { border: 1.5px solid var(--btn); box-shadow: 0 8px 24px rgba(59,130,246,.18); }
+  .box.cur .kv b { font-size: 20px; }
+  .box.cur .nums div { background: var(--accent-soft); }
+  .cur-chip { display: inline-block; margin-bottom: 6px; background: var(--accent-soft); color: var(--btn); font-weight: 600; }
 
   /* без размытия или при повышенном контрасте — плотная заливка */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -774,21 +779,27 @@ function tabMoney(o) {
 function tabIncome(o) {
   const byYm = {};
   o.income.forEach(r => { (byYm[r.ym] = byYm[r.ym] || []).push(r); });
-  const yms = Object.keys(byYm).sort().reverse();
-  if (!yms.length) return '<div class="box empty">Пока нет данных</div>';
+  // текущий месяц первым (даже если пока пустой), ниже прошедшие; будущие не показываем
+  const cur = state.today.slice(0, 7);
+  if (!byYm[cur]) byYm[cur] = [{ ym: cur, apartment: 'ИТОГО', count: 0, nights: 0, income: 0, costRUB: 0, net: 0 }];
+  const yms = Object.keys(byYm).filter(ym => ym <= cur).sort().reverse();
   const nApt = o.apartments.length || 1;
   let h = '';
   yms.forEach(ym => {
     const rows = byYm[ym], tot = rows.find(r => r.apartment === 'ИТОГО') || rows[0];
+    const isCur = ym === cur;
     const days = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
     const occ = n => Math.min(100, Math.round(n / days * 100));
-    h += '<div class="box"><div class="kv"><b>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</b>' +
+    if (ym !== cur && yms.indexOf(ym) === 1) h += '<h2>Прошедшие месяцы</h2>';
+    h += '<div class="box' + (isCur ? ' cur' : '') + '">' + (isCur ? '<span class="chip-s cur-chip">Текущий месяц</span>' : '') +
+      '<div class="kv"><b>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</b>' +
       '<span class="muted">загрузка ' + Math.min(100, Math.round(tot.nights / (days * nApt) * 100)) + '% · ' + tot.count + ' бр. · ' + tot.nights + ' н.</span></div>' +
       '<div class="nums"><div><small>Доход</small><b>' + rub(tot.income) + '</b></div><div><small>Расходы</small><b>' + rub(tot.costRUB) +
       '</b></div><div><small>Чистая</small><b>' + rub(tot.net) + '</b></div></div>' +
-      '<table class="t"><tr><th>Квартира</th><th>Ночей</th><th>Доход</th><th>Чистая</th></tr>' +
+      (rows.some(r => r.apartment !== 'ИТОГО') ? '<table class="t"><tr><th>Квартира</th><th>Ночей</th><th>Доход</th><th>Чистая</th></tr>' +
       rows.filter(r => r.apartment !== 'ИТОГО').map(r => '<tr><td>' + esc(r.apartment) + '</td><td>' + r.nights + ' · ' + occ(r.nights) +
-        '%</td><td>' + rub(r.income) + '</td><td>' + rub(r.net) + '</td></tr>').join('') + '</table></div>';
+        '%</td><td>' + rub(r.income) + '</td><td>' + rub(r.net) + '</td></tr>').join('') + '</table>'
+        : '<div class="muted">Броней с заездом в этом месяце пока нет</div>') + '</div>';
   });
   return h + '<div class="muted" style="padding:0 4px">Месяц — по дате заезда. Расходы: уборки и покупки в BYN по курсу ' +
     esc(o.settings.rate) + '. Коммуналка и прочее не учтены.</div>';
