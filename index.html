@@ -796,13 +796,16 @@ function tabIncome(o) {
       '<span class="muted">загрузка ' + Math.min(100, Math.round(tot.nights / (days * nApt) * 100)) + '% · ' + tot.count + ' бр. · ' + tot.nights + ' н.</span></div>' +
       '<div class="nums"><div><small>Доход</small><b>' + rub(tot.income) + '</b></div><div><small>Расходы</small><b>' + rub(tot.costRUB) +
       '</b></div><div><small>Чистая</small><b>' + rub(tot.net) + '</b></div></div>' +
+      '<div class="muted" style="margin-bottom:4px">Расходы: уборки ' + money(tot.cleanBYN || 0) + ' · покупки ' + money(tot.buyBYN || 0) +
+      ' · коммуналка ' + money(Math.round(tot.utilBYN || 0)) + ' BYN</div>' +
       (rows.some(r => r.apartment !== 'ИТОГО') ? '<table class="t"><tr><th>Квартира</th><th>Ночей</th><th>Доход</th><th>Чистая</th></tr>' +
       rows.filter(r => r.apartment !== 'ИТОГО').map(r => '<tr><td>' + esc(r.apartment) + '</td><td>' + r.nights + ' · ' + occ(r.nights) +
         '%</td><td>' + rub(r.income) + '</td><td>' + rub(r.net) + '</td></tr>').join('') + '</table>'
         : '<div class="muted">Броней с заездом в этом месяце пока нет</div>') + '</div>';
   });
-  return h + '<div class="muted" style="padding:0 4px">Месяц — по дате заезда. Расходы: уборки и покупки в BYN по курсу ' +
-    esc(o.settings.rate) + '. Коммуналка и прочее не учтены.</div>';
+  return h + '<div class="muted" style="padding:0 4px">Месяц — по дате заезда. Расходы в BYN (уборки, покупки, коммуналка ' +
+    esc(o.settings.utilities) + ' BYN в месяц за все квартиры — поровну на каждую) переведены по курсу ' + esc(o.settings.rate) +
+    '. Прочие расходы не учтены.</div>';
 }
 
 function tabMore(o) {
@@ -815,6 +818,7 @@ function tabMore(o) {
     '<label class="f">Заезд с<input type="time" id="st-checkin" value="' + esc(st.checkin) + '"></label></div>' +
     '<div class="grid2"><label class="f">Уборка, BYN<input id="st-fee" inputmode="decimal" value="' + esc(st.cleanFee) + '"></label>' +
     '<label class="f">Курс: 1 BYN = … ₽<input id="st-rate" inputmode="decimal" value="' + esc(st.rate) + '"></label></div>' +
+    '<label class="f">Коммуналка в месяц за все квартиры, BYN<input id="st-util" inputmode="decimal" value="' + esc(st.utilities) + '"></label>' +
     '<button class="btn sec" data-act="saveSettings">Сохранить настройки</button></div></div>' +
     '<div class="box"><div class="title">Вид</div><button class="btn sec" data-act="asMaid">' +
     (ui.asMaid ? 'Вернуться в свой режим' : 'Посмотреть уборки глазами горничной') + '</button></div>';
@@ -1063,8 +1067,10 @@ async function ownerClick(a, b) {
     return true;
   }
   if (a === 'saveSettings') {
-    const req = { checkout: v('st-checkout'), checkin: v('st-checkin'), cleanFee: v('st-fee').replace(',', '.'), rate: v('st-rate').replace(',', '.') };
-    Object.assign(o.settings, { checkout: req.checkout, checkin: req.checkin, cleanFee: Number(req.cleanFee), rate: Number(req.rate) });
+    const req = { checkout: v('st-checkout'), checkin: v('st-checkin'), cleanFee: v('st-fee').replace(',', '.'),
+      rate: v('st-rate').replace(',', '.'), utilities: v('st-util').replace(',', '.') };
+    Object.assign(o.settings, { checkout: req.checkout, checkin: req.checkin, cleanFee: Number(req.cleanFee), rate: Number(req.rate),
+      utilities: Number(req.utilities) });
     undirty('st-'); haptic('success');
     send('setSettings', req, 'own', 'Настройки сохранены');
     return true;
