@@ -243,6 +243,32 @@
   .nums div, .rcpt { border-radius: 12px; }
   .num { flex-basis: 26px; height: 26px; border-radius: 13px; }
 
+  /* что закончилось — чипы-галочки */
+  .chips { display: flex; gap: 6px; padding: 8px 0 4px; }
+  .chips.wrap { flex-wrap: wrap; overflow: visible; }
+  .chip { border: 0; background: var(--bg2); color: var(--text); border-radius: 999px; padding: 8px 12px;
+    font: inherit; font-size: 14px; min-height: 36px; transition: transform .15s, background .2s; }
+  .chip:active { transform: scale(.96); }
+  .chip.on { background: var(--btn); color: var(--btn-text); font-weight: 600; }
+  /* выбор фото: аккуратная кнопка вместо стандартной «Choose File» */
+  .file { display: block; font-size: 13px; color: var(--hint); }
+  .file input[type=file] { display: block; width: 100%; margin-top: 4px; padding: 8px; font-size: 14px; color: var(--hint);
+    background: var(--bg2); border-radius: 12px; min-height: 44px; }
+  .file input[type=file]::file-selector-button, .file input[type=file]::-webkit-file-upload-button {
+    border: 0; border-radius: 10px; padding: 8px 12px; margin-right: 10px; font: inherit; font-weight: 600;
+    background: var(--accent-soft); color: var(--btn); }
+  .prob { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--bad-bg); color: var(--bad-fg); font-size: 14px; }
+  /* открыта клавиатура — нижнее меню прячем, чтобы не висело над ней */
+  body.kb #tabs { display: none !important; }
+  body.kb.owner main { padding-bottom: 24px; }
+
+  /* заработок горничной: полоски по месяцам */
+  .bars { display: grid; gap: 8px; margin-top: 10px; }
+  .bar-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+  .bar { height: 10px; border-radius: 999px; background: var(--bg2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: inherit; background: var(--btn); }
+  .guide li { margin: 6px 0; }
+
   /* без размытия или при повышенном контрасте — плотная заливка */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     #tabs, #toast, header.scrolled { background: var(--bg); }
@@ -274,7 +300,10 @@ const ICON = {
   income: '<path d="M5 20v-6M12 20V9M19 20V4"/>',
   more: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
 };
+ICON.mmoney = ICON.money; ICON.earn = ICON.income; ICON.mmore = ICON.more;
 const TABS = [['clean', 'Уборки'], ['bookings', 'Брони'], ['money', 'Деньги'], ['income', 'Доходы'], ['more', 'Ещё']];
+const MAID_TABS = [['clean', 'Уборки'], ['mmoney', 'Деньги'], ['earn', 'Заработок'], ['mmore', 'Ещё']];
+const tabsList = () => ownerView() ? TABS : MAID_TABS;
 const isOwner = () => state && state.role === 'owner';
 const ownerView = () => isOwner() && !ui.asMaid;
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
@@ -300,6 +329,16 @@ if (tg) {
 }
 // шапка становится стеклом, когда под ней прокручивается контент
 addEventListener('scroll', () => document.querySelector('header').classList.toggle('scrolled', scrollY > 4), { passive: true });
+// клавиатура: пока поле ввода в фокусе, нижнее меню спрятано
+document.addEventListener('focusin', e => {
+  if (e.target.matches('input:not([type=file]), textarea, select')) document.body.classList.add('kb');
+});
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    const a = document.activeElement;
+    if (!a || !a.matches || !a.matches('input:not([type=file]), textarea, select')) document.body.classList.remove('kb');
+  }, 120);
+});
 function tap() { try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {} }
 function pick() { try { tg.HapticFeedback.selectionChanged(); } catch (e) {} }
 
@@ -394,7 +433,9 @@ function send(action, extra, key, okMsg) {
   const p = chain.then(() => withRetry(() => call(action, extra))).then(data => {
     inflight--; if (key) pending[key]--;
     if (data.owner && !pending.own) state.owner = data.owner;
-    if (data.items) { if (!inflight) state = Object.assign(data, { owner: data.owner || state.owner }); }
+    if (data.maid) state.maid = data.maid;
+    else if (data.item) state.maid = null; // деньги могли измениться — перезагрузим при открытии вкладки
+    if (data.items) { if (!inflight) state = Object.assign(data, { owner: data.owner || state.owner, maid: data.maid || state.maid }); }
     else if (data.item && !pending[data.item.key]) {
       const i = state.items.findIndex(x => x.key === data.item.key);
       if (i >= 0) state.items[i] = data.item;
@@ -425,10 +466,10 @@ async function reload() {
   try {
     const data = await withRetry(() => call('list'));
     if (!inflight) {
-      state = Object.assign(data, { owner: state && state.owner });
+      state = Object.assign(data, { owner: state && state.owner, maid: state && state.maid });
       if (!ui.sel) { ui.sel = state.today; ui.month = state.today.slice(0, 7); }
       render(); setSync('');
-      if (isOwner() && ui.tab !== 'clean') loadOwner();
+      if (ui.tab !== 'clean') { if (ownerView()) loadOwner(); else loadMaid(); }
     }
   } catch (e) {
     setSync(''); toast(e.message, true);
@@ -543,12 +584,13 @@ function card(it) {
   if (ui.open['buy|' + it.key]) {
     h += '<div class="form"><input id="ba-' + k + '" inputmode="decimal" placeholder="Сумма, BYN">' +
       '<input id="bw-' + k + '" placeholder="Что купили">' +
-      '<label class="file">Фото чека: <input id="bf-' + k + '" type="file" accept="image/*"></label>' +
+      '<label class="file">Фото чека<input id="bf-' + k + '" type="file" accept="image/*"></label>' +
       '<button class="btn" data-act="buySave" data-key="' + k + '">Сохранить покупку</button>' +
       '<button class="btn sec" data-act="buyToggle" data-key="' + k + '">Отмена</button></div>';
   } else {
     h += '<button class="link" data-act="buyToggle" data-key="' + k + '">+ Покупка</button>';
   }
+  h += outOfBlock(it, k) + problemBlock(it, k);
   h += '</div></div>';
 
   // 4. видео
@@ -574,6 +616,32 @@ function card(it) {
     h += '<button class="btn" data-act="done" data-key="' + k + '"' + (it.started && it.video ? '' : ' disabled') + '>✅ Готово</button>';
   }
   h += '</div></div></div></div>';
+  return h;
+}
+
+/* ---------- что закончилось и проблемы ---------- */
+function outOfBlock(it, k) {
+  const list = state.outOfList || [];
+  const sel = it.outOf || [];
+  return '<div class="title" style="margin-top:12px">Что закончилось</div><div class="chips wrap">' + list.map(x =>
+    '<button class="chip' + (sel.indexOf(x) >= 0 ? ' on' : '') + '" data-act="outOf" data-key="' + k + '" data-v="' + esc(x) + '">' +
+    (sel.indexOf(x) >= 0 ? '✓ ' : '') + esc(x) + '</button>').join('') + '</div>' +
+    '<div class="muted">Иван получит список в отчёте за день.</div>';
+}
+function problemBlock(it, k) {
+  let h = '';
+  (it.problems || []).forEach(p => {
+    h += '<div class="prob">⚠️ ' + esc(p.text || 'фото') + (p.url || p.photo ? ' 📷' : '') +
+      ' <span class="muted">' + (p.saving ? 'отправляю…' : 'отправлено ' + esc(String(p.created || '').slice(-5))) + '</span></div>';
+  });
+  if (ui.open['prob|' + it.key]) {
+    h += '<div class="form"><label class="file">Фото проблемы<input id="pf-' + k + '" type="file" accept="image/*"></label>' +
+      '<textarea id="pt-' + k + '" placeholder="Что случилось: сломалось, протекает, грязно после гостей…"></textarea>' +
+      '<button class="btn" data-act="probSend" data-key="' + k + '">Отправить Ивану сейчас</button>' +
+      '<button class="btn sec" data-act="probToggle" data-key="' + k + '">Отмена</button></div>';
+  } else {
+    h += '<button class="link" data-act="probToggle" data-key="' + k + '" style="color:var(--red)">📷 Сообщить о проблеме</button>';
+  }
   return h;
 }
 
@@ -611,6 +679,11 @@ function ownerCard(it) {
       p.url ? '<button class="rcpt" data-act="openUrl" data-url="' + esc(p.url) + '">🧾 ' + money(p.amount) + (p.what ? ' · ' + esc(p.what) : '') + '</button>'
         : '<span class="chip-s">' + money(p.amount) + (p.what ? ' · ' + esc(p.what) : '') + ' · без чека</span> ').join('') + '</div>';
   }
+  if ((it.outOf || []).length) h += '<div class="stat">🧴 Закончилось: ' + esc(it.outOf.join(', ').toLowerCase()) + '</div>';
+  (it.problems || []).forEach(p => {
+    h += '<div class="prob">⚠️ ' + esc(p.text || 'фото') + ' <span class="muted">' + esc(String(p.created || '').slice(-5)) + '</span>' +
+      (p.url ? ' <button class="rcpt" data-act="openUrl" data-url="' + esc(p.url) + '">📷 Фото</button>' : '') + '</div>';
+  });
   if (it.video) h += '<button class="link" data-act="ownVideo" data-key="' + k + '">🎥 Прислать видео мне в чат</button>';
   h += '<div class="title" style="margin-top:12px">Для горничной</div>' +
     '<label class="f">Изменение времени<input id="tc-' + k + '" value="' + esc(it.timeChange) + '" placeholder="Заезд в 17:00 / поздний выезд 12:00"></label>' +
@@ -736,13 +809,81 @@ function tabMore(o) {
     (ui.asMaid ? 'Вернуться в свой режим' : 'Посмотреть уборки глазами горничной') + '</button></div>';
 }
 
+/* ---------- вкладки горничной ---------- */
+function buyLines(list) {
+  return list.map(p => '<div class="stat">' + money(p.amount) + ' BYN' + (p.what ? ' — ' + esc(p.what) : '') +
+    (p.receipt ? ' 🧾' : ' <span class="muted">без чека</span>') + '</div>').join('');
+}
+function tabMaidMoney(m) {
+  const d = m.money;
+  let h = '<div class="box"><div class="muted">Иван должен вам</div><div class="big">' + money(d.total) + ' BYN</div>' +
+    '<div class="muted">уборки ' + money(d.fees) + ' · покупки ' + money(d.buys) + ' · ' + d.unpaid.length + ' шт.</div>' +
+    '<div class="muted" style="margin-top:8px">Когда Иван отметит оплату, бот пришлёт сообщение.</div></div>';
+  if (!d.unpaid.length) h += '<div class="box empty">Всё оплачено 👍</div>';
+  d.unpaid.slice().reverse().forEach(r => {
+    h += '<div class="box"><div class="kv"><b>' + wd(r.date) + ' ' + ddmmyy(r.date) + ' · ' + esc(r.apartment) + '</b><b>' +
+      money(r.sum) + ' BYN</b></div><div class="muted">уборка ' + money(r.fee) + (r.buy ? ' + покупки ' + money(r.buy) : '') + '</div>' +
+      buyLines(r.buysList) + '</div>';
+  });
+  if (d.paid.length) {
+    h += '<details class="box"><summary>Оплачено за 45 дней (' + d.paid.length + ')</summary>' + d.paid.map(r =>
+      '<div class="kv"><span>' + wd(r.date) + ' ' + ddmmyy(r.date) + ' · ' + esc(r.apartment) + '</span><span>' + money(r.sum) + ' BYN</span></div>').join('') + '</details>';
+  }
+  return h;
+}
+
+function tabEarn(m) {
+  const e = m.earnings;
+  if (!e.months.length) return '<div class="box empty">Пока нет уборок</div>';
+  const cur = state.today.slice(0, 7);
+  const now = e.months.find(x => x.ym === cur) || { count: 0, fees: 0, buys: 0, paid: 0, unpaid: 0, apts: {} };
+  const mName = ym => MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4);
+  let h = '<div class="box"><div class="muted">' + mName(cur) + '</div><div class="big">' + money(now.fees) + ' BYN</div>' +
+    '<div class="muted">за уборки · ' + now.count + ' шт.' + (now.buys ? ' · покупки возмещаются ' + money(now.buys) + ' BYN' : '') + '</div>' +
+    '<div class="nums"><div><small>Оплачено</small><b>' + money(now.paid) + '</b></div><div><small>Ждёт оплаты</small><b>' +
+    money(now.unpaid) + '</b></div><div><small>Ставка</small><b>' + money(m.fee || 0) + '</b></div></div>' +
+    (Object.keys(now.apts).length ? '<div class="muted">' + Object.keys(now.apts).map(a => esc(a) + ': ' + now.apts[a]).join(' · ') + '</div>' : '') + '</div>';
+  const last = e.months.slice(0, 6);
+  const max = Math.max.apply(null, last.map(x => x.fees).concat([1]));
+  h += '<div class="box"><div class="title">По месяцам, BYN за уборки</div><div class="bars">' + last.map(x =>
+    '<div class="bar-row"><span class="muted">' + MONTHS[+x.ym.slice(5, 7) - 1].slice(0, 3) + ' ' + x.ym.slice(2, 4) + '</span>' +
+    '<span class="bar"><i style="width:' + Math.round(x.fees / max * 100) + '%"></i></span><span>' + money(x.fees) + '</span></div>').join('') + '</div></div>';
+  h += '<div class="box"><div class="title">История</div><table class="t"><tr><th>Месяц</th><th>Уборок</th><th>Уборки</th><th>Покупки</th></tr>' +
+    e.months.map(x => '<tr><td>' + mName(x.ym) + '</td><td>' + x.count + '</td><td>' + money(x.fees) + '</td><td>' + money(x.buys) + '</td></tr>').join('') +
+    '<tr><td><b>Всего</b></td><td><b>' + e.total.count + '</b></td><td><b>' + money(e.total.fees) + '</b></td><td><b>' + money(e.total.buys) + '</b></td></tr></table></div>';
+  return h;
+}
+
+function tabMaidMore(m) {
+  return '<div class="box"><div class="title">График</div><div class="kv"><span class="muted">Обновлено</span><span>' + esc(m.lastSync || '—') + '</span></div>' +
+    '<button class="btn" data-act="maidSync">Обновить информацию</button>' +
+    '<div class="muted">Подтянет новые брони и изменения. До минуты.</div></div>' +
+    '<div class="box"><div class="title">Как пользоваться</div><ol class="guide">' +
+    '<li>В календаре нажмите на день — там уборки, гости и время выезда/заезда.</li>' +
+    '<li>Укажите, во сколько будете. Если до заезда меньше часа, Иван предупредит гостей.</li>' +
+    '<li>В день уборки нажмите «Начать», когда зайдёте в квартиру.</li>' +
+    '<li>Покупки добавляйте с фото чека, заметки — что закончилось или сломалось.</li>' +
+    '<li>После уборки отправьте видео-обзор в чат бота, вернитесь и нажмите «Готово».</li>' +
+    '<li>Напоминания со временем бот пришлёт в Telegram.</li></ol></div>' +
+    (isOwner() ? '<div class="box"><button class="btn sec" data-act="asMaid">Вернуться в свой режим</button></div>' : '');
+}
+
+async function loadMaid() {
+  if (ui.maidLoading) return;
+  ui.maidLoading = true; setSync('Загрузка…'); render();
+  try { const d = await withRetry(() => call('maid')); if (!pending.maid) state.maid = d.maid; setSync(''); }
+  catch (e) { setSync(''); toast(e.message, true); }
+  finally { ui.maidLoading = false; render(); }
+}
+
 function renderTabs() {
-  document.body.classList.toggle('owner', isOwner());
+  document.body.classList.toggle('owner', !!state);
   const nav = document.getElementById('tabs');
-  if (!isOwner()) { nav.innerHTML = ''; return; }
-  nav.innerHTML = TABS.map(t => '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '"><svg viewBox="0 0 24 24">' +
+  const list = tabsList();
+  if (!list.find(t => t[0] === ui.tab)) ui.tab = 'clean';
+  nav.innerHTML = list.map(t => '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '"><svg viewBox="0 0 24 24">' +
     ICON[t[0]] + '</svg>' + t[1] + '</button>').join('');
-  document.querySelector('header h1').textContent = TABS.find(t => t[0] === ui.tab)[1] + (ui.asMaid && ui.tab === 'clean' ? ' · как горничная' : '');
+  document.querySelector('header h1').textContent = list.find(t => t[0] === ui.tab)[1] + (ui.asMaid && ui.tab === 'clean' ? ' · как горничная' : '');
 }
 
 /* ---------- напоминания на выбранный день ---------- */
@@ -768,6 +909,12 @@ function render() {
   const list = document.getElementById('list');
   if (!state) return;
   renderTabs();
+  if (!ownerView() && ui.tab !== 'clean') {
+    const m = state.maid;
+    const h = !m ? '<p class="empty">Загрузка…</p>' : ui.tab === 'mmoney' ? tabMaidMoney(m) : ui.tab === 'earn' ? tabEarn(m) : tabMaidMore(m);
+    keepInputs(list, () => { list.innerHTML = h; });
+    return;
+  }
   if (isOwner() && ui.tab !== 'clean') {
     const o = state.owner;
     let h = !o ? '<p class="empty">Загрузка…</p>' : ui.tab === 'bookings' ? tabBookings(o) : ui.tab === 'money' ? tabMoney(o)
@@ -837,7 +984,9 @@ document.getElementById('tabs').addEventListener('click', e => {
   ui.tab = b.dataset.tab;
   pick();
   window.scrollTo(0, 0);
-  if (ui.tab !== 'clean' && !state.owner) loadOwner(); else render();
+  if (ui.tab !== 'clean' && ownerView() && !state.owner) loadOwner();
+  else if (ui.tab !== 'clean' && !ownerView() && !state.maid) loadMaid();
+  else render();
 });
 
 const byId = id => document.getElementById(id);
@@ -858,7 +1007,7 @@ async function ownerClick(a, b) {
     return true;
   }
   if (a === 'ownVideo') { send('ownVideo', { key: b.dataset.key }, b.dataset.key, 'Видео придёт в чат с ботом'); return true; }
-  if (a === 'asMaid') { ui.asMaid = !ui.asMaid; ui.tab = 'clean'; render(); return true; }
+  if (a === 'asMaid') { ui.asMaid = !ui.asMaid; ui.tab = 'clean'; window.scrollTo(0, 0); render(); return true; }
   if (!o) return false;
   if (a === 'bkView') { ui.bkView = b.dataset.v; render(); return true; }
   if (a === 'bkApt') { ui.bkApt = b.dataset.v; render(); return true; }
@@ -927,6 +1076,7 @@ listEl.addEventListener('click', async e => {
   const ok = () => haptic('success');
   if (a !== 'day' && a !== 'month') tap();
   if (isOwner() && await ownerClick(a, b)) return;
+  if (a === 'maidSync') { setSync('Обновляю…'); send('maidSync', {}, 'maid', 'Информация обновлена'); return; }
 
   if (a === 'month') {
     const [y, m] = ui.month.split('-').map(Number);
@@ -992,6 +1142,26 @@ listEl.addEventListener('click', async e => {
     if (!(await confirmBox('Удалить эту покупку?'))) return;
     it.purchases = it.purchases.filter(p => p.id !== b.dataset.id); ok();
     return send('delPurchase', { id: b.dataset.id }, key);
+  }
+  if (a === 'outOf') {
+    const v = b.dataset.v;
+    it.outOf = (it.outOf || []).indexOf(v) >= 0 ? it.outOf.filter(x => x !== v) : (it.outOf || []).concat([v]);
+    pick();
+    return send('outOf', { key: key, items: it.outOf }, key);
+  }
+  if (a === 'probToggle') { ui.open['prob|' + key] = !ui.open['prob|' + key]; return render(); }
+  if (a === 'probSend') {
+    const fileEl = field('pf');
+    const file = fileEl && fileEl.files && fileEl.files[0];
+    const text = val('pt');
+    if (!file && !text) return toast('Сфотографируйте или опишите проблему', true);
+    ui.open['prob|' + key] = false;
+    it.problems = (it.problems || []).concat([{ id: 'tmp' + Date.now(), text: text, photo: !!file, saving: true }]);
+    ok(); render();
+    let photo = '';
+    try { if (file) photo = await compress(file); }
+    catch (err) { it.problems = it.problems.filter(p => !p.saving); render(); return toast(err.message, true); }
+    return send('problem', { key: key, text: text, photo: photo }, key, 'Отправлено Ивану');
   }
   if (a === 'remAdd') {
     const text = val('rt'), time = val('rtm');
