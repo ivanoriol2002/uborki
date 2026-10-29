@@ -105,6 +105,7 @@
   input[type=time]::-webkit-date-and-time-value, input[type=date]::-webkit-date-and-time-value { text-align: left; }
   input::placeholder, textarea::placeholder { color: var(--hint); }
   .inline input[type=time] { flex: 0 0 120px; width: 120px; }
+  .inline label input[type=time] { width: 100%; flex: none; }
   textarea { min-height: 64px; resize: vertical; }
   .buy, .rem { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; gap: 8px; }
   .x { border: 0; background: none; color: var(--red); font-size: 18px; padding: 0 4px; }
@@ -116,10 +117,14 @@
   #toast.err { background: var(--red); }
 
   /* режим Ивана */
-  body.owner main { padding-bottom: 84px; }
-  body.owner #toast { bottom: 80px; }
-  #tabs { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--bg);
-    border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+  /* нижняя безопасная зона: от iOS (env) или от Telegram (--tg-safe-area-inset-bottom), не меньше 14px */
+  :root { --safe-b: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), 14px); }
+  body.owner main { padding-bottom: calc(96px + var(--safe-b)); }
+  body.owner #toast { bottom: calc(84px + var(--safe-b)); }
+  /* меню — плавающая панель с отступами, чтобы не уходить в скруглённые углы экрана */
+  #tabs { display: none; position: fixed; left: 12px; right: 12px; bottom: var(--safe-b); z-index: 6;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 22px; padding: 6px 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18); }
   body.owner #tabs { display: flex; }
   #tabs button { flex: 1; border: 0; background: none; color: var(--hint); font-size: 11px; padding: 4px 0;
     display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -651,8 +656,9 @@ function reminders(iso) {
         '<button class="x" data-act="remDel" data-id="' + esc(r.id) + '">✕</button>') + '</div>';
   });
   h += '<div class="form"><input id="rt-x" placeholder="Например: взять 2 комплекта белья">' +
-    '<div class="inline" style="margin-top:0"><input type="time" id="rtm-x">' +
-    '<button class="btn" data-act="remAdd">Добавить</button></div>' +
+    '<div class="inline" style="margin-top:0;align-items:end"><label class="f" style="flex:0 0 140px">Во сколько напомнить' +
+    '<input type="time" id="rtm-x"></label>' +
+    '<button class="btn" data-act="remAdd" style="min-height:42px">Добавить</button></div>' +
     '<div class="muted">Если указать время, бот пришлёт напоминание в Telegram.</div></div></div>';
   return h;
 }
