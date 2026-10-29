@@ -159,9 +159,102 @@
   label.f { font-size: 12px; color: var(--hint); display: block; min-width: 0; }
   details summary { cursor: pointer; }
   label.f input, label.f select, label.f textarea { margin-top: 3px; }
+
+  /* ================= Liquid Glass (Apple) =================
+     Стекло — только функциональный слой: нижнее меню, шапка при прокрутке, всплывающие сообщения.
+     Карточки и списки — плотные, чтобы текст читался. Под стеклом — мягкий цветной фон. */
+  :root {
+    --radius: 22px;
+    --glass-fill: rgba(255,255,255,.7); --glass-border: rgba(255,255,255,.75); --glass-hi: rgba(255,255,255,.9);
+    --glass-shade: rgba(0,0,0,.06); --glass-shadow: 0 8px 30px rgba(20,30,60,.12);
+    --glass-blur: blur(28px) saturate(1.6);
+    --card-shadow: 0 1px 2px rgba(20,30,60,.04), 0 6px 18px rgba(20,30,60,.06);
+    --accent-soft: rgba(59,130,246,.14);
+    --orb1: rgba(59,130,246,.20); --orb2: rgba(46,160,90,.14); --orb3: rgba(232,137,28,.10);
+  }
+  :root[data-theme="dark"] {
+    --glass-fill: rgba(30,32,40,.74); --glass-border: rgba(255,255,255,.14); --glass-hi: rgba(255,255,255,.22);
+    --glass-shade: rgba(0,0,0,.35); --glass-shadow: 0 10px 36px rgba(0,0,0,.55);
+    --card-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    --accent-soft: rgba(74,140,255,.18);
+    --orb1: rgba(74,140,255,.18); --orb2: rgba(63,191,111,.10); --orb3: rgba(240,160,75,.07);
+  }
+  body { font-size: 16px; -webkit-font-smoothing: antialiased; }
+  #bgfx { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(70% 45% at 0% 25%, var(--orb1), transparent 70%),
+                radial-gradient(60% 40% at 100% 55%, var(--orb2), transparent 70%),
+                radial-gradient(70% 45% at 30% 100%, var(--orb3), transparent 70%); }
+
+  .glass, #tabs, #toast, header.scrolled {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  #tabs, #toast { isolation: isolate; border: .5px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-shade); }
+  /* блик по краю стекла */
+  #tabs::before, #toast::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+    background: linear-gradient(135deg, var(--glass-hi), transparent 40%, transparent 65%, var(--glass-border));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+
+  /* шапка: прозрачная, при прокрутке — стекло */
+  header { background: transparent; padding-top: calc(10px + var(--tg-content-safe-area-inset-top, 0px));
+    transition: background .25s, box-shadow .25s; }
+  header.scrolled { box-shadow: 0 .5px 0 var(--glass-border); }
+  header h1 { font-size: 28px; letter-spacing: -.02em; }
+  header button { font-size: 16px; min-height: 44px; }
+
+  /* нижнее меню — стеклянная капсула */
+  #tabs { left: 12px; right: 12px; bottom: var(--safe-b); border-radius: 28px; padding: 6px; }
+  #tabs button { min-height: 48px; border-radius: 22px; gap: 1px; transition: transform .15s, background .2s; }
+  #tabs button.on { color: var(--btn); background: var(--accent-soft); }
+
+  /* сообщения — стекло, текст цвета темы */
+  #toast { color: var(--text); border-radius: 18px; padding: 14px 16px; font-weight: 500; }
+  #toast.err { background: var(--glass-fill); color: var(--red); }
+
+  /* контент — плотные карточки */
+  .box, .card { border-radius: var(--radius); box-shadow: var(--card-shadow); }
+  .box { padding: 16px; margin-bottom: 12px; }
+  .card { padding: 16px 16px 16px 20px; margin-bottom: 12px; border-left: 0; position: relative; overflow: hidden; }
+  .card::before { content: ""; position: absolute; left: 0; top: 16px; bottom: 16px; width: 4px;
+    border-radius: 0 4px 4px 0; background: var(--green); }
+  .card.urgent::before { background: var(--blue); }
+  .card.changed::before { background: var(--orange); }
+  .apt { font-size: 26px; letter-spacing: -.02em; }
+  .badge, .chip-s { border-radius: 999px; padding: 4px 10px; }
+  .ivan, .warn { border-radius: 12px; padding: 10px 12px; }
+  h2 { margin: 20px 6px 10px; }
+
+  /* календарь */
+  .cal-head b { font-size: 18px; }
+  .cal-head button { width: 44px; height: 36px; border-radius: 12px; }
+  .d { min-height: 50px; border-radius: 14px; transition: transform .15s; }
+  .d.sel { box-shadow: 0 6px 16px rgba(59,130,246,.35); }
+
+  /* кнопки и поля: 44px+, нажатие — лёгкое сжатие */
+  .btn { min-height: 50px; border-radius: 14px; font-size: 16px; transition: transform .15s, opacity .15s; }
+  .inline .btn { min-height: 44px; }
+  .btn.sec { background: var(--bg2); }
+  .btn:active, .seg button:active, .d:active, #tabs button:active, .rcpt:active, .cal-head button:active { transform: scale(.97); }
+  .btn:active { opacity: .9; }
+  input, textarea, select { border-radius: 12px; padding: 12px; min-height: 44px; }
+  .seg button { min-height: 38px; padding: 8px 14px; border-radius: 999px; background: var(--bg); box-shadow: var(--card-shadow); }
+  .nums div, .rcpt { border-radius: 12px; }
+  .num { flex-basis: 26px; height: 26px; border-radius: 13px; }
+
+  /* без размытия или при повышенном контрасте — плотная заливка */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #tabs, #toast, header.scrolled { background: var(--bg); }
+  }
+  @media (prefers-contrast: more) {
+    #tabs, #toast, header.scrolled { background: var(--bg); border-color: var(--hint); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
+<div id="bgfx"></div>
 <header><h1>Уборки</h1><div class="right"><span id="sync"></span><button id="refresh">Обновить</button></div></header>
 <main id="list"><p class="empty">Загрузка…</p></main>
 <nav id="tabs"></nav>
@@ -197,10 +290,18 @@ function applyTheme() {
   const page = dark ? '#121318' : '#f2f3f7', bar = dark ? '#1d1f26' : '#ffffff';
   try { tg.setHeaderColor(page); } catch (e) {}
   try { tg.setBackgroundColor(page); } catch (e) {}
-  try { tg.setBottomBarColor(bar); } catch (e) {}
+  try { tg.setBottomBarColor(page); } catch (e) {}
 }
 applyTheme();
-if (tg) { tg.ready(); tg.expand(); try { tg.onEvent('themeChanged', applyTheme); } catch (e) {} }
+if (tg) {
+  tg.ready(); tg.expand();
+  try { tg.disableVerticalSwipes(); } catch (e) {} // прокрутка не закрывает приложение
+  try { tg.onEvent('themeChanged', applyTheme); } catch (e) {}
+}
+// шапка становится стеклом, когда под ней прокручивается контент
+addEventListener('scroll', () => document.querySelector('header').classList.toggle('scrolled', scrollY > 4), { passive: true });
+function tap() { try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {} }
+function pick() { try { tg.HapticFeedback.selectionChanged(); } catch (e) {} }
 
 /* ---------- мелочи ---------- */
 function esc(s) {
@@ -734,6 +835,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]');
   if (!b) return;
   ui.tab = b.dataset.tab;
+  pick();
   window.scrollTo(0, 0);
   if (ui.tab !== 'clean' && !state.owner) loadOwner(); else render();
 });
@@ -823,6 +925,7 @@ listEl.addEventListener('click', async e => {
   const val = id => { const el = field(id); return el ? el.value.trim() : ''; };
   const clean = id => { const el = field(id); if (el) { delete el.dataset.dirty; el.value = ''; } };
   const ok = () => haptic('success');
+  if (a !== 'day' && a !== 'month') tap();
   if (isOwner() && await ownerClick(a, b)) return;
 
   if (a === 'month') {
@@ -831,7 +934,7 @@ listEl.addEventListener('click', async e => {
     ui.month = d.toISOString().slice(0, 7);
     return render();
   }
-  if (a === 'day') { ui.sel = b.dataset.date; ui.month = ui.sel.slice(0, 7); return render(); }
+  if (a === 'day') { pick(); ui.sel = b.dataset.date; ui.month = ui.sel.slice(0, 7); return render(); }
 
   if (a === 'time') {
     const t = val('tm');
