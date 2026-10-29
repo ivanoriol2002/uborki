@@ -14,7 +14,7 @@
     --link: var(--tg-theme-link-color, #2a7ae2);
     --btn: var(--tg-theme-button-color, #2a7ae2);
     --btn-text: var(--tg-theme-button-text-color, #ffffff);
-    --green: #2e9d4f; --orange: #e8891c; --red: #d64545;
+    --green: #2e9d4f; --orange: #e8891c; --red: #d64545; --grey: #b0b3b8;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg2); color: var(--text);
@@ -22,11 +22,34 @@
   header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between;
     padding: 10px 16px; background: var(--bg2); }
   header h1 { margin: 0; font-size: 20px; }
-  header button { border: 0; background: none; color: var(--link); font-size: 15px; padding: 6px 0; }
   header .right { display: flex; align-items: center; gap: 12px; }
+  header button { border: 0; background: none; color: var(--link); font-size: 15px; padding: 6px 0; }
   #sync { font-size: 13px; color: var(--hint); }
   main { padding: 0 12px 40px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 18px 4px 8px; }
+  .box { background: var(--bg); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+
+  /* календарь */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .cal-head b { font-size: 16px; }
+  .cal-head button { border: 0; background: var(--bg2); color: var(--text); width: 36px; height: 32px;
+    border-radius: 8px; font-size: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .wd { font-size: 11px; color: var(--hint); padding: 2px 0; }
+  .d { border: 0; background: none; color: var(--text); border-radius: 10px; padding: 5px 0 4px; min-height: 46px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 15px; }
+  .d.past { color: var(--hint); }
+  .d.today .n { border: 2px solid var(--btn); }
+  .d.sel { background: var(--btn); color: var(--btn-text); }
+  .d.sel .n { border-color: var(--btn-text); }
+  .n { width: 26px; height: 26px; line-height: 22px; border-radius: 13px; border: 2px solid transparent; }
+  .dots { display: flex; gap: 2px; height: 6px; align-items: center; }
+  .dot { width: 6px; height: 6px; border-radius: 3px; background: var(--green); }
+  .dot.urgent { background: var(--red); } .dot.changed { background: var(--orange); } .dot.done { background: var(--grey); }
+  .bell { font-size: 8px; line-height: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--hint); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 16px 4px 8px; }
   .card { background: var(--bg); border-radius: 14px; padding: 14px; margin-bottom: 10px;
     border-left: 5px solid var(--green); }
   .card.urgent { border-left-color: var(--red); }
@@ -34,11 +57,12 @@
   .card.finished { opacity: .75; }
   .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .apt { font-size: 22px; font-weight: 700; }
-  .day { color: var(--hint); }
   .badge { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
     background: #e3f4e1; color: #1f6b35; }
   .urgent .badge { background: #fde2e2; color: #9b2c2c; }
   .changed .badge { background: #fde5c8; color: #8a4b08; }
+  .times { display: flex; gap: 16px; margin-top: 8px; font-size: 14px; }
+  .times b { font-size: 16px; }
   .ivan { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #fff4e5; color: #6b3d00; }
   .guest { margin-top: 10px; }
   .guest .lbl { font-size: 12px; color: var(--hint); }
@@ -53,29 +77,28 @@
   .body { flex: 1; min-width: 0; }
   .title { font-weight: 600; }
   .muted { color: var(--hint); font-size: 13px; }
-  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; -webkit-overflow-scrolling: touch; }
-  .chip { flex: 0 0 auto; border: 1px solid var(--bg2); background: var(--bg2); color: var(--text);
-    border-radius: 16px; padding: 6px 11px; font-size: 14px; }
-  .chip.on { background: var(--btn); color: var(--btn-text); border-color: var(--btn); }
+  .warn { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #fde2e2; color: #9b2c2c; font-size: 13px; }
+  .note { margin-top: 6px; font-size: 13px; color: #8a4b08; }
   .btn { display: block; width: 100%; margin-top: 8px; border: 0; border-radius: 10px; padding: 11px;
     font-size: 15px; font-weight: 600; background: var(--btn); color: var(--btn-text); }
   .btn.sec { background: var(--bg2); color: var(--text); }
-  .btn:disabled { opacity: .45; }
+  .btn:disabled { opacity: .4; }
   .link { border: 0; background: none; color: var(--link); padding: 4px 0; font-size: 14px; }
-  .inline { display: flex; gap: 6px; margin-top: 8px; }
+  .inline { display: flex; gap: 6px; margin-top: 8px; align-items: stretch; }
+  .inline .btn { width: auto; margin: 0; padding: 0 14px; }
   input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg2); border: 0;
     border-radius: 10px; padding: 10px; }
+  input[type=time] { min-height: 42px; }
+  .inline input[type=time] { flex: 0 0 120px; width: 120px; }
   textarea { min-height: 64px; resize: vertical; }
-  .inline .btn { width: auto; margin: 0; padding: 0 14px; }
-  .buy { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; gap: 8px; }
-  .buy .x { border: 0; background: none; color: var(--red); font-size: 18px; padding: 0 4px; }
+  .buy, .rem { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; gap: 8px; }
+  .x { border: 0; background: none; color: var(--red); font-size: 18px; padding: 0 4px; }
   .form { margin-top: 8px; display: grid; gap: 8px; }
   .file { font-size: 14px; }
-  details summary { color: var(--hint); margin: 18px 4px 8px; font-size: 13px; text-transform: uppercase; }
+  .empty { text-align: center; color: var(--hint); padding: 16px 0; }
   #toast { position: fixed; left: 12px; right: 12px; bottom: 16px; padding: 12px 14px; border-radius: 12px;
     background: #222; color: #fff; font-size: 14px; display: none; z-index: 10; }
   #toast.err { background: var(--red); }
-  .empty { text-align: center; color: var(--hint); padding: 40px 0; }
 </style>
 </head>
 <body>
@@ -86,11 +109,17 @@
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 const API = new URLSearchParams(location.search).get('api');
-let state = null;           // данные с сервера
-const ui = { open: {} };    // какие формы раскрыты: { 'buy|key': true, 'custom|key': true }
+let state = null;                     // данные с сервера
+const ui = { open: {}, month: '', sel: '' };
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
+  'Ноябрь', 'Декабрь'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября',
+  'ноября', 'декабря'];
+const WEEKDAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
 if (tg) { tg.ready(); tg.expand(); }
 
+/* ---------- мелочи ---------- */
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -106,7 +135,39 @@ function confirmBox(text) {
     res(window.confirm(text));
   });
 }
+function setSync(text) { document.getElementById('sync').textContent = text || ''; }
+function nowShort() {
+  const d = new Date(), p = n => ('0' + n).slice(-2);
+  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function hm(s) { const m = String(s || '').match(/(\d{1,2})[:.](\d{2})\s*$/); return m ? +m[1] * 60 + +m[2] : null; }
+function addDays(iso, n) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dayTitle(iso) {
+  const d = new Date(iso + 'T12:00:00Z');
+  return WEEKDAYS[d.getUTCDay()] + ', ' + d.getUTCDate() + ' ' + MONTHS_GEN[d.getUTCMonth()];
+}
+function phoneLink(p) {
+  if (!p) return '';
+  return '<a href="tel:' + esc(String(p).replace(/[^\d+]/g, '')) + '">📞 ' + esc(p) + '</a>';
+}
+function guestsWord(n) {
+  n = Number(n); if (!n) return '';
+  const m10 = n % 10, m100 = n % 100;
+  const w = m10 === 1 && m100 !== 11 ? 'гость' : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'гостя' : 'гостей';
+  return n + ' ' + w;
+}
+function money(n) { return String(Math.round(Number(n) * 100) / 100).replace('.', ','); }
+function findItem(key) { return state && state.items.find(i => i.key === key); }
+/** то же правило, что у сервера: '' — успевает, 'tight' — меньше часа до заезда, 'late' — позже заселения */
+function arrivalCheck(it) {
+  if (!it.urgent || !it.maidTime) return '';
+  const a = hm(it.maidTime), c = hm(it.checkinTime);
+  if (a === null || c === null) return '';
+  if (a >= c) return 'late';
+  return c - a < 60 ? 'tight' : '';
+}
 
+/* ---------- связь с сервером ---------- */
 async function call(action, extra) {
   if (!API) throw new Error('Откройте график через бота в Telegram');
   const body = Object.assign({ action: action, initData: tg ? tg.initData : '' }, extra || {});
@@ -116,7 +177,6 @@ async function call(action, extra) {
   if (!j.ok) throw new Error(j.error || 'Ошибка');
   return j.data;
 }
-
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** Если таблица занята обновлением, сервер ничего не сохранил — можно спокойно повторить. */
 async function withRetry(fn) {
@@ -129,18 +189,9 @@ async function withRetry(fn) {
   }
 }
 
-function setSync(text) { document.getElementById('sync').textContent = text || ''; }
-function nowShort() {
-  const d = new Date(), p = n => ('0' + n).slice(-2);
-  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
-function findItem(key) { return state && state.items.find(i => i.key === key); }
-
-// Кнопки срабатывают сразу: карточка меняется на экране, запрос уходит в фоне, по очереди.
-const pending = {};      // сколько запросов в пути по каждой уборке
-let inflight = 0;
-let chain = Promise.resolve();
-let savedTimer = null;
+// Кнопки срабатывают сразу: экран меняется, запрос уходит в фоне, по очереди.
+const pending = {};
+let inflight = 0, chain = Promise.resolve(), savedTimer = null;
 
 function send(action, extra, key, okMsg) {
   inflight++;
@@ -153,7 +204,7 @@ function send(action, extra, key, okMsg) {
     else if (data.item && !pending[data.item.key]) {
       const i = state.items.findIndex(x => x.key === data.item.key);
       if (i >= 0) state.items[i] = data.item;
-    }
+    } else if (data.reminders && !pending.rem) state.reminders = data.reminders;
     render();
     if (!inflight) {
       setSync('Сохранено ✓');
@@ -179,103 +230,101 @@ async function reload() {
   if (!inflight) setSync('Загрузка…');
   try {
     const data = await withRetry(() => call('list'));
-    if (!inflight) { state = data; render(); setSync(''); }
+    if (!inflight) {
+      state = data;
+      if (!ui.sel) { ui.sel = state.today; ui.month = state.today.slice(0, 7); }
+      render(); setSync('');
+    }
   } catch (e) {
     setSync(''); toast(e.message, true);
     if (!state) document.getElementById('list').innerHTML = '<p class="empty">' + esc(e.message) + '</p>';
   } finally { loading = false; }
 }
 
-function phoneLink(p) {
-  if (!p) return '';
-  const tel = String(p).replace(/[^\d+]/g, '');
-  return '<a href="tel:' + esc(tel) + '">📞 ' + esc(p) + '</a>';
+/* ---------- календарь ---------- */
+function calendar() {
+  const [y, m] = ui.month.split('-').map(Number);
+  const startDow = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7; // пн = 0
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const byDate = {}, remDates = {};
+  state.items.forEach(it => { (byDate[it.date] = byDate[it.date] || []).push(it); });
+  (state.reminders || []).forEach(r => { remDates[r.date] = true; });
+  let h = '<div class="box"><div class="cal-head"><button data-act="month" data-step="-1">‹</button><b>' +
+    MONTHS[m - 1] + ' ' + y + '</b><button data-act="month" data-step="1">›</button></div><div class="grid">';
+  ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach(w => { h += '<div class="wd">' + w + '</div>'; });
+  for (let i = 0; i < startDow; i++) h += '<div></div>';
+  for (let d = 1; d <= days; d++) {
+    const iso = ui.month + '-' + ('0' + d).slice(-2);
+    const cls = ['d', iso < state.today ? 'past' : '', iso === state.today ? 'today' : '', iso === ui.sel ? 'sel' : ''].join(' ');
+    const dots = (byDate[iso] || []).map(it =>
+      '<i class="dot ' + (it.done ? 'done' : it.changed ? 'changed' : it.urgent ? 'urgent' : '') + '"></i>').join('');
+    h += '<button class="' + cls + '" data-act="day" data-date="' + iso + '"><span class="n">' + d + '</span>' +
+      '<span class="dots">' + dots + (remDates[iso] ? '<span class="bell">🔔</span>' : '') + '</span></button>';
+  }
+  h += '</div><div class="legend"><span><i class="dot urgent"></i>заезд в тот же день</span>' +
+    '<span><i class="dot"></i>без заезда</span><span><i class="dot changed"></i>Иван изменил время</span>' +
+    '<span><i class="dot done"></i>готово</span><span>🔔 напоминание</span></div></div>';
+  return h;
 }
-function guestsWord(n) {
-  n = Number(n); if (!n) return '';
-  const m10 = n % 10, m100 = n % 100;
-  const w = m10 === 1 && m100 !== 11 ? 'гость' : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'гостя' : 'гостей';
-  return n + ' ' + w;
-}
-function money(n) { return String(Math.round(Number(n) * 100) / 100).replace('.', ','); }
 
+/* ---------- карточка уборки ---------- */
 function card(it) {
   const k = esc(it.key);
+  const isToday = it.date === state.today;
   const cls = ['card', it.changed ? 'changed' : it.urgent ? 'urgent' : '', it.done ? 'finished' : ''].join(' ');
-  const badge = it.urgent ? 'Заезд в ' + esc(state.checkin) : 'Заезда нет';
   let h = '<div class="' + cls + '">';
-  h += '<div class="top"><span class="apt">' + esc(it.apartment) + '</span><span class="day">' + esc(it.day) +
-    '</span><span class="badge">' + badge + '</span></div>';
+  h += '<div class="top"><span class="apt">' + esc(it.apartment) + '</span><span class="badge">' +
+    (it.urgent ? 'Заезд в тот же день' : 'Заезда нет') + '</span></div>';
+  h += '<div class="times"><span>Выезд до <b>' + esc(it.checkoutTime) + '</b></span>' +
+    (it.urgent ? '<span>Заезд в <b>' + esc(it.checkinTime) + '</b></span>' : '') + '</div>';
   if (it.fromIvan) h += '<div class="ivan">От Ивана: ' + esc(it.fromIvan) + '</div>';
 
-  // гости
-  h += '<div class="guest"><div class="lbl">Выезжает до ' + esc(state.checkout) + '</div><div class="row"><span>' +
+  h += '<div class="guest"><div class="lbl">Выезжает</div><div class="row"><span>' +
     esc(it.out.name || 'гость') + (it.out.guests ? ' · ' + guestsWord(it.out.guests) : '') + '</span>' +
     phoneLink(it.out.phone) + '</div></div>';
   if (it.urgent) {
-    h += '<div class="guest"><div class="lbl">Заезжает в ' + esc(state.checkin) + '</div><div class="row"><span>' +
+    h += '<div class="guest"><div class="lbl">Заезжает</div><div class="row"><span>' +
       esc(it.next.name || 'гость') + (it.next.guests ? ' · ' + guestsWord(it.next.guests) : '') + '</span>' +
       phoneLink(it.next.phone) + '</div></div>';
   } else {
-    h += '<div class="guest muted">Сегодня никто не заезжает' +
+    h += '<div class="guest muted">В этот день никто не заезжает' +
       (it.next.guests ? ' · следующие: ' + guestsWord(it.next.guests) : '') + '</div>';
   }
 
   h += '<div class="steps">';
-  // 1. время
-  const times = state.times || [];
+  // 1. время прибытия — любое
   h += '<div class="step"><div class="num ' + (it.maidTime ? 'ok' : '') + '">1</div><div class="body">' +
-    '<div class="title">Буду в квартире' + (it.maidTime ? ': ' + esc(it.maidTime) : '') + '</div>';
-  if (!it.done) {
-    h += '<div class="chips">' + times.map(t => '<button class="chip' + (t === it.maidTime ? ' on' : '') +
-      '" data-act="time" data-key="' + k + '" data-time="' + t + '">' + t + '</button>').join('') +
-      '<button class="chip" data-act="custom" data-key="' + k + '">своё…</button></div>';
-    if (ui.open['custom|' + it.key]) {
-      h += '<div class="inline"><input id="ct-' + k + '" placeholder="например 12:15–14:00" value="' +
-        esc(times.indexOf(it.maidTime) < 0 ? it.maidTime : '') + '"><button class="btn" data-act="timeCustom" data-key="' +
-        k + '">OK</button></div>';
-    }
+    '<div class="title">Буду в квартире' + (it.maidTime ? ' в ' + esc(it.maidTime) : '') + '</div>';
+  if (!it.done && !it.started) {
+    h += '<div class="inline"><input type="time" id="tm-' + k + '" value="' + esc(it.maidTime) + '">' +
+      '<button class="btn" data-act="time" data-key="' + k + '">Сохранить</button></div>';
+  }
+  const w = arrivalCheck(it);
+  if (w === 'late') h += '<div class="warn">Это позже заселения гостей (' + esc(it.checkinTime) + '). Иван получил предупреждение.</div>';
+  if (w === 'tight') h += '<div class="warn">До заезда гостей меньше часа. Иван получил предупреждение.</div>';
+  if (it.maidTime && hm(it.maidTime) < hm(it.checkoutTime)) {
+    h += '<div class="note">Гости выезжают до ' + esc(it.checkoutTime) + ' — могут быть ещё в квартире.</div>';
   }
   h += '</div></div>';
 
-  // 2. убрано
-  h += '<div class="step"><div class="num ' + (it.cleaned ? 'ok' : '') + '">2</div><div class="body">';
-  if (it.cleaned) {
-    h += '<div class="title">Убрано ✓ <span class="muted">' + esc(it.cleaned.slice(-5)) + '</span></div>';
-    if (!it.done) h += '<button class="link" data-act="undo" data-field="cleaned" data-key="' + k + '">отменить</button>';
+  // 2. начать — только в день уборки
+  h += '<div class="step"><div class="num ' + (it.started ? 'ok' : '') + '">2</div><div class="body">';
+  if (it.started) {
+    h += '<div class="title">Уборка начата ✓ <span class="muted">' + esc(it.started.slice(-5)) + '</span></div>';
+    if (!it.done) h += '<button class="link" data-act="undo" data-field="start" data-key="' + k + '">отменить</button>';
   } else {
-    h += '<div class="title">Уборка</div><button class="btn" data-act="cleaned" data-key="' + k + '">🧹 Убрано</button>';
+    h += '<button class="btn" data-act="start" data-key="' + k + '"' + (isToday ? '' : ' disabled') + '>▶️ Начать</button>' +
+      (isToday ? '<div class="muted">Нажмите, когда зайдёте в квартиру</div>'
+        : '<div class="muted">' + (it.date > state.today ? 'Кнопка заработает в день уборки' : 'День уборки прошёл') + '</div>');
   }
   h += '</div></div>';
 
-  // 3. видео
-  h += '<div class="step"><div class="num ' + (it.video ? 'ok' : '') + '">3</div><div class="body">';
-  if (it.video) {
-    h += '<div class="title">Видео-обзор получено ✓' + (it.video > 1 ? ' (' + it.video + ')' : '') + '</div>';
-    if (!it.done) h += '<button class="link" data-act="video" data-key="' + k + '">отправить ещё</button>';
-  } else if (it.cleaned) {
-    h += '<div class="title">Видео-обзор</div><div class="muted">Снимите квартиру и отправьте видео в чат бота. ' +
-      'Через минуту нажмите «Обновить».</div>' +
-      '<button class="btn" data-act="video" data-key="' + k + '">🎥 Отправить видео в чат</button>';
-  } else {
-    h += '<div class="title">Видео-обзор</div><div class="muted">После «Убрано»</div>';
-  }
-  h += '</div></div>';
-
-  // 4. готово
-  h += '<div class="step"><div class="num ' + (it.done ? 'ok' : '') + '">4</div><div class="body">';
-  if (it.done) {
-    h += '<div class="title">Готово ✓ <span class="muted">' + esc(it.done.slice(-5)) + '</span></div>' +
-      '<button class="link" data-act="undo" data-field="done" data-key="' + k + '">отменить</button>';
-  } else {
-    h += '<button class="btn" data-act="done" data-key="' + k + '"' + (it.video ? '' : ' disabled') + '>✅ Готово</button>';
-  }
-  h += '</div></div>';
-
-  // покупки
+  // 3. заметки и покупки
   const sum = it.purchases.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  h += '<div class="step"><div class="num">₽</div><div class="body"><div class="title">Покупки' +
-    (sum ? ': ' + money(sum) + ' BYN' : '') + '</div>';
+  h += '<div class="step"><div class="num">3</div><div class="body"><div class="title">Заметки и покупки</div>' +
+    '<textarea id="cm-' + k + '" placeholder="Что закончилось, сломалось, что заметили">' + esc(it.comment) + '</textarea>' +
+    '<button class="btn sec" data-act="comment" data-key="' + k + '">Сохранить заметку</button>' +
+    '<div class="title" style="margin-top:12px">Покупки' + (sum ? ': ' + money(sum) + ' BYN' : '') + '</div>';
   it.purchases.forEach(p => {
     h += '<div class="buy"><span>' + money(p.amount) + ' BYN' + (p.what ? ' — ' + esc(p.what) : '') +
       (p.receipt ? ' 🧾' : ' <span class="muted">без чека</span>') + '</span>' +
@@ -293,38 +342,66 @@ function card(it) {
   }
   h += '</div></div>';
 
-  // комментарий
-  h += '<div class="step"><div class="num">✎</div><div class="body"><div class="title">Комментарий</div>' +
-    '<textarea id="cm-' + k + '" placeholder="Что закончилось, сломалось, что заметили">' + esc(it.comment) + '</textarea>' +
-    '<button class="btn sec" data-act="comment" data-key="' + k + '">Сохранить комментарий</button></div></div>';
-
+  // 4. видео
+  h += '<div class="step"><div class="num ' + (it.video ? 'ok' : '') + '">4</div><div class="body">';
+  if (it.video) {
+    h += '<div class="title">Видео-обзор получено ✓' + (it.video > 1 ? ' (' + it.video + ')' : '') + '</div>';
+    if (!it.done) h += '<button class="link" data-act="video" data-key="' + k + '">отправить ещё</button>';
+  } else if (it.started) {
+    h += '<div class="title">Видео-обзор</div><div class="muted">После уборки снимите квартиру и отправьте видео в чат бота. ' +
+      'Через минуту нажмите «Обновить».</div>' +
+      '<button class="btn" data-act="video" data-key="' + k + '">🎥 Отправить видео в чат</button>';
+  } else {
+    h += '<div class="title">Видео-обзор</div><div class="muted">После «Начать»</div>';
+  }
   h += '</div></div>';
+
+  // 5. готово
+  h += '<div class="step"><div class="num ' + (it.done ? 'ok' : '') + '">5</div><div class="body">';
+  if (it.done) {
+    h += '<div class="title">Готово ✓ <span class="muted">' + esc(it.done.slice(-5)) + '</span></div>' +
+      '<button class="link" data-act="undo" data-field="done" data-key="' + k + '">отменить</button>';
+  } else {
+    h += '<button class="btn" data-act="done" data-key="' + k + '"' + (it.started && it.video ? '' : ' disabled') + '>✅ Готово</button>';
+  }
+  h += '</div></div></div></div>';
+  return h;
+}
+
+/* ---------- напоминания на выбранный день ---------- */
+function reminders(iso) {
+  const list = (state.reminders || []).filter(r => r.date === iso)
+    .sort((a, b) => (a.time || '99') < (b.time || '99') ? -1 : 1);
+  let h = '<div class="box"><div class="title">Мои напоминания</div>';
+  if (!list.length) h += '<div class="muted">Пока нет</div>';
+  list.forEach(r => {
+    h += '<div class="rem"><span>' + (r.time ? '🔔 <b>' + esc(r.time) + '</b> · ' : '') + esc(r.text) + '</span>' +
+      (r.saving ? '<span class="muted">сохраняю…</span>' :
+        '<button class="x" data-act="remDel" data-id="' + esc(r.id) + '">✕</button>') + '</div>';
+  });
+  h += '<div class="form"><input id="rt-x" placeholder="Например: взять 2 комплекта белья">' +
+    '<div class="inline" style="margin-top:0"><input type="time" id="rtm-x">' +
+    '<button class="btn" data-act="remAdd">Добавить</button></div>' +
+    '<div class="muted">Если указать время, бот пришлёт напоминание в Telegram.</div></div></div>';
   return h;
 }
 
 function render() {
   const list = document.getElementById('list');
-  if (!state || !state.items.length) { list.innerHTML = '<p class="empty">В ближайшие дни уборок нет</p>'; return; }
-  const today = state.today;
-  const tomorrow = new Date(today + 'T12:00:00Z'); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const tmr = tomorrow.toISOString().slice(0, 10);
-  const past = state.items.filter(i => i.date < today);
-  const future = state.items.filter(i => i.date >= today);
-  let h = '', lastDate = '';
-  future.forEach(it => {
-    if (it.date !== lastDate) {
-      lastDate = it.date;
-      const name = it.date === today ? 'Сегодня, ' + it.day : it.date === tmr ? 'Завтра, ' + it.day : it.day;
-      h += '<h2>' + esc(name) + '</h2>';
-    }
-    h += card(it);
-  });
-  if (!future.length) h += '<p class="empty">Впереди уборок нет</p>';
-  if (past.length) {
-    h += '<details' + (ui.pastOpen ? ' open' : '') + ' id="past"><summary>Прошедшие (' + past.length + ')</summary>' +
-      past.slice().reverse().map(card).join('') + '</details>';
+  if (!state) return;
+  const sel = ui.sel;
+  const dayItems = state.items.filter(i => i.date === sel);
+  let h = calendar();
+  h += '<h2>' + esc(dayTitle(sel)) + (sel === state.today ? ' · сегодня' : '') + '</h2>';
+  if (dayItems.length) h += dayItems.map(card).join('');
+  else {
+    const next = state.items.find(i => i.date > sel);
+    h += '<div class="box empty">Уборок нет' + (next ? '<br><button class="link" data-act="day" data-date="' + next.date +
+      '">Следующая: ' + esc(next.day) + ' · ' + esc(next.apartment) + '</button>' : '') + '</div>';
   }
-  // не теряем то, что горничная печатает или выбрала, пока приходят ответы сервера
+  h += reminders(sel);
+
+  // не теряем то, что печатают или выбрали, пока приходят ответы сервера
   const typed = {}, files = {};
   list.querySelectorAll('input:not([type=file]), textarea').forEach(el => { if (el.dataset.dirty) typed[el.id] = el.value; });
   list.querySelectorAll('input[type=file]').forEach(el => { files[el.id] = el; });
@@ -333,8 +410,6 @@ function render() {
   Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) { el.value = typed[id]; el.dataset.dirty = '1'; } });
   Object.keys(files).forEach(id => { const el = document.getElementById(id); if (el) el.replaceWith(files[id]); });
   if (focusId) { const el = document.getElementById(focusId); if (el && el.focus) el.focus(); }
-  const d = document.getElementById('past');
-  if (d) d.addEventListener('toggle', () => { ui.pastOpen = d.open; });
 }
 
 /** Сжимаем фото чека до ~1600 px, чтобы быстро загружалось. */
@@ -354,29 +429,42 @@ function compress(file) {
   });
 }
 
-document.getElementById('list').addEventListener('input', e => { e.target.dataset.dirty = '1'; });
+/* ---------- нажатия ---------- */
+const listEl = document.getElementById('list');
+listEl.addEventListener('input', e => { e.target.dataset.dirty = '1'; });
 
-document.getElementById('list').addEventListener('click', async e => {
+listEl.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
-  if (!b) return;
-  const key = b.dataset.key, a = b.dataset.act, it = findItem(key);
-  const field = id => document.getElementById(id + '-' + key);
+  if (!b || !state) return;
+  const key = b.dataset.key, a = b.dataset.act, it = key ? findItem(key) : null;
+  const field = id => document.getElementById(id + '-' + (key || 'x'));
   const val = id => { const el = field(id); return el ? el.value.trim() : ''; };
+  const clean = id => { const el = field(id); if (el) { delete el.dataset.dirty; el.value = ''; } };
   const ok = () => haptic('success');
 
-  if (a === 'time') { it.maidTime = b.dataset.time; ok(); return send('time', { key: key, time: it.maidTime }, key); }
-  if (a === 'custom') { ui.open['custom|' + key] = !ui.open['custom|' + key]; return render(); }
-  if (a === 'timeCustom') {
-    ui.open['custom|' + key] = false; it.maidTime = val('ct'); ok();
-    return send('time', { key: key, time: it.maidTime }, key);
+  if (a === 'month') {
+    const [y, m] = ui.month.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + Number(b.dataset.step), 1));
+    ui.month = d.toISOString().slice(0, 7);
+    return render();
   }
-  if (a === 'cleaned') {
-    if (!(await confirmBox('Квартира убрана?'))) return;
-    it.cleaned = nowShort(); ok();
-    return send('cleaned', { key: key }, key);
+  if (a === 'day') { ui.sel = b.dataset.date; ui.month = ui.sel.slice(0, 7); return render(); }
+
+  if (a === 'time') {
+    const t = val('tm');
+    const el = field('tm'); if (el) delete el.dataset.dirty;
+    it.maidTime = t; ok();
+    const w = arrivalCheck(it);
+    return send('time', { key: key, time: t }, key,
+      w ? 'Время сохранено. Иван предупредит гостей' : 'Время сохранено');
+  }
+  if (a === 'start') {
+    if (!(await confirmBox('Вы в квартире и начинаете уборку?'))) return;
+    it.started = nowShort(); ok();
+    return send('start', { key: key }, key);
   }
   if (a === 'video') {
-    // тут ждём ответ: бот должен знать, к какой уборке придёт видео, до того как приложение закроется
+    // ждём ответ: бот должен знать, к какой уборке придёт видео, до того как приложение закроется
     toast('Секунду…');
     if (!(await send('video', { key: key }, key))) return;
     toast('Отправьте видео в чат бота');
@@ -384,19 +472,19 @@ document.getElementById('list').addEventListener('click', async e => {
     return;
   }
   if (a === 'done') {
-    if (!(await confirmBox('Всё готово, можно отправить отчёт?'))) return;
+    if (!(await confirmBox('Квартира убрана, отправить отчёт Ивану?'))) return;
     it.done = nowShort(); ok();
     return send('done', { key: key }, key, 'Готово! Спасибо');
   }
   if (a === 'undo') {
     if (!(await confirmBox('Отменить отметку?'))) return;
-    if (b.dataset.field === 'done') it.done = ''; else { it.cleaned = ''; it.done = ''; }
+    if (b.dataset.field === 'done') it.done = ''; else { it.started = ''; it.done = ''; }
     return send('undo', { key: key, field: b.dataset.field }, key);
   }
   if (a === 'comment') {
     const el = field('cm'); if (el) delete el.dataset.dirty;
     it.comment = val('cm'); ok();
-    return send('comment', { key: key, text: it.comment }, key, 'Комментарий сохранён');
+    return send('comment', { key: key, text: it.comment }, key, 'Заметка сохранена');
   }
   if (a === 'buyToggle') { ui.open['buy|' + key] = !ui.open['buy|' + key]; return render(); }
   if (a === 'buySave') {
@@ -418,6 +506,19 @@ document.getElementById('list').addEventListener('click', async e => {
     if (!(await confirmBox('Удалить эту покупку?'))) return;
     it.purchases = it.purchases.filter(p => p.id !== b.dataset.id); ok();
     return send('delPurchase', { id: b.dataset.id }, key);
+  }
+  if (a === 'remAdd') {
+    const text = val('rt'), time = val('rtm');
+    if (!text) return toast('Напишите текст напоминания', true);
+    clean('rt'); clean('rtm');
+    state.reminders = (state.reminders || []).concat([{ id: 'tmp' + Date.now(), date: ui.sel, time: time, text: text, saving: true }]);
+    ok();
+    return send('remAdd', { date: ui.sel, time: time, text: text }, 'rem', time ? 'Бот напомнит в ' + time : 'Добавлено');
+  }
+  if (a === 'remDel') {
+    if (String(b.dataset.id).indexOf('tmp') === 0) return;
+    state.reminders = state.reminders.filter(r => r.id !== b.dataset.id); ok();
+    return send('remDel', { id: b.dataset.id }, 'rem');
   }
 });
 
