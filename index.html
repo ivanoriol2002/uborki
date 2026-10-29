@@ -14,7 +14,7 @@
     --link: var(--tg-theme-link-color, #2a7ae2);
     --btn: var(--tg-theme-button-color, #2a7ae2);
     --btn-text: var(--tg-theme-button-text-color, #ffffff);
-    --green: #2e9d4f; --orange: #e8891c; --red: #d64545; --grey: #b0b3b8;
+    --green: #2e9d4f; --orange: #e8891c; --red: #d64545; --grey: #b0b3b8; --blue: #3b82f6;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg2); color: var(--text);
@@ -44,22 +44,24 @@
   .n { width: 26px; height: 26px; line-height: 22px; border-radius: 13px; border: 2px solid transparent; }
   .dots { display: flex; gap: 2px; height: 6px; align-items: center; }
   .dot { width: 6px; height: 6px; border-radius: 3px; background: var(--green); }
-  .dot.urgent { background: var(--red); } .dot.changed { background: var(--orange); } .dot.done { background: var(--grey); }
+  .dot.urgent { background: var(--blue); } .dot.changed { background: var(--orange); } .dot.done { background: var(--grey); }
   .bell { font-size: 8px; line-height: 6px; }
+  .d.sel .dot { box-shadow: 0 0 0 1.5px var(--btn-text); }
+  .d.na { color: var(--hint); opacity: .4; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--hint); margin-top: 8px; }
   .legend span { display: inline-flex; align-items: center; gap: 4px; }
 
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 16px 4px 8px; }
   .card { background: var(--bg); border-radius: 14px; padding: 14px; margin-bottom: 10px;
     border-left: 5px solid var(--green); }
-  .card.urgent { border-left-color: var(--red); }
+  .card.urgent { border-left-color: var(--blue); }
   .card.changed { border-left-color: var(--orange); }
   .card.finished { opacity: .75; }
   .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .apt { font-size: 22px; font-weight: 700; }
   .badge { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
     background: #e3f4e1; color: #1f6b35; }
-  .urgent .badge { background: #fde2e2; color: #9b2c2c; }
+  .urgent .badge { background: #dceafd; color: #1d4f9a; }
   .changed .badge { background: #fde5c8; color: #8a4b08; }
   .times { display: flex; gap: 16px; margin-top: 8px; font-size: 14px; }
   .times b { font-size: 16px; }
@@ -157,6 +159,7 @@ function guestsWord(n) {
   return n + ' ' + w;
 }
 function money(n) { return String(Math.round(Number(n) * 100) / 100).replace('.', ','); }
+function until() { return state.until || addDays(state.today, 31); }
 function findItem(key) { return state && state.items.find(i => i.key === key); }
 /** то же правило, что у сервера: '' — успевает, 'tight' — меньше часа до заезда, 'late' — позже заселения */
 function arrivalCheck(it) {
@@ -255,11 +258,13 @@ function calendar() {
   for (let i = 0; i < startDow; i++) h += '<div></div>';
   for (let d = 1; d <= days; d++) {
     const iso = ui.month + '-' + ('0' + d).slice(-2);
-    const cls = ['d', iso < state.today ? 'past' : '', iso === state.today ? 'today' : '', iso === ui.sel ? 'sel' : ''].join(' ');
+    const na = iso > until();
+    const cls = ['d', iso < state.today ? 'past' : '', na ? 'na' : '', iso === state.today ? 'today' : '',
+      iso === ui.sel ? 'sel' : ''].join(' ');
     const dots = (byDate[iso] || []).map(it =>
       '<i class="dot ' + (it.done ? 'done' : it.changed ? 'changed' : it.urgent ? 'urgent' : '') + '"></i>').join('');
     h += '<button class="' + cls + '" data-act="day" data-date="' + iso + '"><span class="n">' + d + '</span>' +
-      '<span class="dots">' + dots + (remDates[iso] ? '<span class="bell">🔔</span>' : '') + '</span></button>';
+      '<span class="dots">' + (na ? '' : dots + (remDates[iso] ? '<span class="bell">🔔</span>' : '')) + '</span></button>';
   }
   h += '</div><div class="legend"><span><i class="dot urgent"></i>заезд в тот же день</span>' +
     '<span><i class="dot"></i>без заезда</span><span><i class="dot changed"></i>Иван изменил время</span>' +
@@ -393,6 +398,13 @@ function render() {
   const dayItems = state.items.filter(i => i.date === sel);
   let h = calendar();
   h += '<h2>' + esc(dayTitle(sel)) + (sel === state.today ? ' · сегодня' : '') + '</h2>';
+  if (sel > until()) {
+    const u = until();
+    h += '<div class="box empty">Пока не доступно<br><span class="muted">График открыт до ' +
+      esc(u.slice(8, 10) + '.' + u.slice(5, 7) + '.' + u.slice(0, 4)) + '</span></div>';
+    list.innerHTML = h; // без карточек и напоминаний
+    return;
+  }
   if (dayItems.length) h += dayItems.map(card).join('');
   else {
     const next = state.items.find(i => i.date > sel);
