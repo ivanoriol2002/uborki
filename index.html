@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>График уборок</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.googleusercontent.com">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   /* своя палитра: светлая и тёмная (тема берётся из Telegram) */
@@ -262,6 +265,16 @@
   body.kb #tabs { display: none !important; }
   body.kb.owner main { padding-bottom: 24px; }
 
+  /* график с прошлого открытия, пока грузятся свежие данные: кнопки действий приглушены */
+  body.stale .card .btn, body.stale .card .chip, body.stale .card .link, body.stale .box .btn { opacity: .5; }
+
+  /* загрузка: скелет вместо пустого экрана */
+  .skel { display: grid; gap: 10px; }
+  .skel i { display: block; height: 14px; border-radius: 8px; background: var(--bg2); }
+  .skel i:nth-child(1) { width: 40%; height: 22px; } .skel i:nth-child(3) { width: 70%; } .skel i:nth-child(4) { width: 55%; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .skel i { animation: pulse 1.2s ease-in-out infinite; }
+
   /* заработок горничной: полоски по месяцам */
   .bars { display: grid; gap: 8px; margin-top: 10px; }
   .bar-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
@@ -363,7 +376,10 @@ function confirmBox(text) {
     res(window.confirm(text));
   });
 }
-function setSync(text) { document.getElementById('sync').textContent = text || ''; }
+function setSync(text) {
+  const n = queueLen();
+  document.getElementById('sync').textContent = text || (n ? '⏳ ждёт сети: ' + n : (ui.offline ? 'нет сети' : ''));
+}
 function nowShort() {
   const d = new Date(), p = n => ('0' + n).slice(-2);
   return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -408,11 +424,179 @@ function arrivalCheck(it) {
 async function call(action, extra) {
   if (!API) throw new Error('Откройте график через бота в Telegram');
   const body = Object.assign({ action: action, initData: tg ? tg.initData : '' }, extra || {});
-  const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(body) });
-  const j = await res.json();
+  const ms = action === 'sync' || action === 'maidSync' ? 120000 : 30000;
+  const ctl = window.AbortController ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+  let res;
+  try {
+    res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined });
+  } catch (e) {
+    const err = new Error('Нет сети'); err.offline = true; throw err; // нет интернета или ответ не дождались
+  } finally { if (timer) clearTimeout(timer); }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('Сервер не ответил, попробуйте ещё раз'); }
   if (!j.ok) throw new Error(j.error || 'Ошибка');
   return j.data;
+}
+
+/* ---------- хранение на телефоне ----------
+   Только для этого человека (по его Telegram ID). График — не старше 2 дней, черновики — 3 дня.
+   Если Иван уберёт доступ, при следующем открытии всё стирается. */
+const UID = String((tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || '');
+const STORE = {
+  p: UID ? 'kv' + UID + ':' : '',
+  get(k) { if (!this.p) return null; try { const v = localStorage.getItem(this.p + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+  set(k, v) { if (!this.p) return false; try { localStorage.setItem(this.p + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  del(k) { if (!this.p) return; try { localStorage.removeItem(this.p + k); } catch (e) {} },
+  wipe() {
+    if (!this.p) return;
+    try { Object.keys(localStorage).filter(k => k.indexOf(this.p) === 0).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    this.p = ''; // больше ничего не записываем
+  },
+};
+const SNAP_DAYS = 2, DRAFT_DAYS = 3;
+// действия, которые без сети ждут в очереди на телефоне и уходят, когда сеть появится
+const QUEUEABLE = ['time', 'start', 'done', 'undo', 'comment', 'purchase', 'delPurchase', 'outOf', 'problem', 'remAdd', 'remDel'];
+// кнопки, которые меняют данные: пока на экране график с прошлого открытия, они ждут свежих данных
+const MUTATING = ['time', 'start', 'video', 'done', 'undo', 'comment', 'buySave', 'delBuy', 'outOf', 'probSend', 'remAdd',
+  'remDel', 'ownerNote', 'ownVideo', 'bkAdd', 'bkSave', 'bkCancel', 'payOne', 'payAll', 'saveSettings', 'syncNow', 'maidSync'];
+function newCid() { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function todayLocal() {
+  const d = new Date(), p2 = n => ('0' + n).slice(-2);
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+function fmtAt(ms) {
+  const d = new Date(ms || Date.now()), p2 = n => ('0' + n).slice(-2);
+  return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+}
+
+// 1. последний график — показываем сразу при открытии, пока грузятся свежие данные
+let syncedAt = 0, snapTimer = null;
+function saveSnap() {
+  clearTimeout(snapTimer);
+  snapTimer = setTimeout(() => {
+    if (!state || !syncedAt || inflight || ui.stale) return;
+    STORE.set('snap', { at: syncedAt, data: state });
+  }, 400);
+}
+function restoreSnap() {
+  const sn = STORE.get('snap');
+  if (!sn || !sn.data || !sn.data.items || Date.now() - sn.at > SNAP_DAYS * 864e5) { if (sn) STORE.del('snap'); return false; }
+  state = sn.data; state.today = todayLocal(); syncedAt = sn.at;
+  loadQueue().forEach(q => applyLocal(q.action, q.extra, true)); // то, что нажато без сети, — тоже на экран
+  return true;
+}
+
+// 2. очередь действий без сети
+function loadQueue() { return STORE.get('queue') || []; }
+function queueLen() { try { return loadQueue().length; } catch (e) { return 0; } }
+function saveQueue(q) { if (!q.length) { STORE.del('queue'); return true; } return STORE.set('queue', q); }
+function enqueue(action, extra, key) {
+  const q = loadQueue();
+  q.push({ action: action, extra: extra, key: key || '' });
+  if (!saveQueue(q)) return false;
+  markQueued(extra.cid);
+  return true;
+}
+function markQueued(cid) {
+  if (!cid || !state) return;
+  (state.reminders || []).forEach(r => { if (r.id === cid) r.queued = true; });
+  (state.items || []).forEach(i => (i.purchases || []).concat(i.problems || []).forEach(x => { if (x.id === cid) x.queued = true; }));
+}
+/** Повторяет на экране действие из очереди (после перезапуска или свежей загрузки). */
+function applyLocal(a, x, queued) {
+  if (!state) return;
+  if (a === 'remAdd') {
+    if (!(state.reminders || []).some(r => r.id === x.cid)) state.reminders = (state.reminders || []).concat([{ id: x.cid, date: x.date,
+      time: x.time, text: x.text, saving: true, queued: queued }]);
+    return;
+  }
+  if (a === 'remDel') { state.reminders = (state.reminders || []).filter(r => r.id !== x.id); return; }
+  if (a === 'delPurchase') { state.items.forEach(i => { i.purchases = (i.purchases || []).filter(p => p.id !== x.id); }); return; }
+  const it = x.key ? state.items.find(i => i.key === x.key) : null;
+  if (!it) return;
+  const t = fmtAt(x.atMs);
+  if (a === 'time') it.maidTime = x.time;
+  if (a === 'start') it.started = t;
+  if (a === 'done') it.done = t;
+  if (a === 'undo') { if (x.field === 'done') it.done = ''; else { it.started = ''; it.done = ''; } }
+  if (a === 'comment') it.comment = x.text;
+  if (a === 'outOf') it.outOf = x.items;
+  if (a === 'purchase' && !(it.purchases || []).some(p => p.id === x.cid)) it.purchases = (it.purchases || []).concat([{ id: x.cid,
+    amount: Number(x.amount), what: x.what, receipt: !!x.photo, saving: true, queued: queued }]);
+  if (a === 'problem' && !(it.problems || []).some(p => p.id === x.cid)) it.problems = (it.problems || []).concat([{ id: x.cid,
+    text: x.text, photo: !!x.photo, saving: true, queued: queued }]);
+}
+let flushing = null, flushTimer = null;
+/** Отправляет по порядку всё, что ждало сети. Возвращает, сколько ушло. */
+function flushQueue() {
+  if (flushing) return flushing;
+  if (!queueLen()) return Promise.resolve(0);
+  flushing = (async () => {
+    let sent = 0;
+    setSync('Отправляю сохранённое…');
+    for (;;) {
+      const q = loadQueue();
+      if (!q.length) break;
+      try { await withRetry(() => call(q[0].action, q[0].extra)); sent++; }
+      catch (e) {
+        if (e.offline) break; // сети всё ещё нет — попробуем позже
+        toast('Не сохранилось: ' + e.message, true);
+      }
+      saveQueue(loadQueue().slice(1));
+    }
+    if (sent) toast('Отправлено, что ждало сети: ' + sent);
+    return sent;
+  })().finally(() => { flushing = null; setSync(''); });
+  return flushing;
+}
+function scheduleFlush() {
+  if (flushTimer) return;
+  flushTimer = setInterval(async () => {
+    if (!queueLen()) { clearInterval(flushTimer); flushTimer = null; return; }
+    if (await flushQueue()) reload();
+  }, 20000);
+}
+window.addEventListener('online', () => { flushQueue().then(() => reload()); });
+
+// 3. черновики: начатый текст не пропадёт, если приложение закрылось
+const DRAFT_RE = /^(cm|pt|ba|bw|nt|tc|rt|rtm)-/;
+let drafts = {}, draftTimer = null;
+function loadDrafts() {
+  drafts = STORE.get('drafts') || {};
+  Object.keys(drafts).forEach(id => {
+    if (Date.now() - drafts[id].at > DRAFT_DAYS * 864e5) { delete drafts[id]; return; }
+    const m = id.match(/^(pt|ba|bw)-(.+)$/); // открыть формы, в которых что-то начато
+    if (m) ui.open[(m[1] === 'pt' ? 'prob|' : 'buy|') + m[2]] = true;
+  });
+}
+function saveDrafts() { clearTimeout(draftTimer); draftTimer = setTimeout(() => STORE.set('drafts', drafts), 300); }
+function setDraft(id, v) { if (v) drafts[id] = { v: v, at: Date.now() }; else delete drafts[id]; saveDrafts(); }
+function clearDrafts() { Array.prototype.forEach.call(arguments, id => { delete drafts[id]; }); saveDrafts(); }
+function applyDrafts() {
+  Object.keys(drafts).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.dirty) return;
+    if (el.value === drafts[id].v) { delete drafts[id]; saveDrafts(); return; } // уже сохранено
+    el.value = drafts[id].v; el.dataset.dirty = '1';
+  });
+}
+
+// 4. мелкие удобства: вкладка, фильтры, выбранный день (день — если открывали меньше 30 минут назад)
+let prefsTimer = null;
+function savePrefs() {
+  clearTimeout(prefsTimer);
+  prefsTimer = setTimeout(() => STORE.set('prefs', { tab: ui.tab, bkView: ui.bkView, bkApt: ui.bkApt, sel: ui.sel, month: ui.month,
+    at: Date.now() }), 300);
+}
+function loadPrefs() {
+  const pr = STORE.get('prefs');
+  if (!pr) return;
+  if (pr.tab) ui.tab = pr.tab;
+  if (pr.bkView) ui.bkView = pr.bkView;
+  if (typeof pr.bkApt === 'string') ui.bkApt = pr.bkApt;
+  if (pr.sel && Date.now() - pr.at < 30 * 60000) { ui.sel = pr.sel; ui.month = pr.month || pr.sel.slice(0, 7); }
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** Если таблица занята обновлением, сервер ничего не сохранил — можно спокойно повторить. */
@@ -431,22 +615,22 @@ const pending = {};
 let inflight = 0, chain = Promise.resolve(), savedTimer = null;
 
 function send(action, extra, key, okMsg) {
+  extra = Object.assign({ atMs: Date.now() }, extra || {}); // время нажатия — важно для «Начать»/«Готово», отправленных позже
+  const canQueue = QUEUEABLE.indexOf(action) >= 0;
+  if (canQueue && queueLen()) { // уже есть неотправленное — встаём в конец очереди, чтобы не перепутать порядок
+    if (enqueue(action, extra, key)) { render(); setSync(''); flushQueue().then(n => { if (n) reload(); }); return Promise.resolve('queued'); }
+  }
   inflight++;
   if (key) pending[key] = (pending[key] || 0) + 1;
   setSync('Сохраняю…');
   render();
   const p = chain.then(() => withRetry(() => call(action, extra))).then(data => {
     inflight--; if (key) pending[key]--;
-    if (data.owner && !pending.own) state.owner = data.owner;
-    if (data.maid) state.maid = data.maid;
-    else if (data.item) state.maid = null; // деньги могли измениться — перезагрузим при открытии вкладки
-    if (data.items) { if (!inflight) state = Object.assign(data, { owner: data.owner || state.owner, maid: data.maid || state.maid }); }
-    else if (data.item && !pending[data.item.key]) {
-      const i = state.items.findIndex(x => x.key === data.item.key);
-      if (i >= 0) state.items[i] = data.item;
-    } else if (data.reminders && !pending.rem) state.reminders = data.reminders;
+    ui.offline = false;
+    applyData(data);
     render();
     if (!inflight) {
+      syncedAt = Date.now(); saveSnap();
       setSync('Сохранено ✓');
       clearTimeout(savedTimer); savedTimer = setTimeout(() => { if (!inflight) setSync(''); }, 2000);
     }
@@ -454,43 +638,113 @@ function send(action, extra, key, okMsg) {
     return data;
   }, err => {
     inflight--; if (key) pending[key]--;
+    if (err.offline && canQueue && enqueue(action, extra, key)) {
+      ui.offline = true; render(); setSync('');
+      toast('Нет сети — сохранено на телефоне, отправлю, когда появится сеть');
+      scheduleFlush();
+      return 'queued';
+    }
     setSync('');
-    toast('Не сохранилось: ' + err.message, true); haptic('error');
-    reload(); // вернуть экран к тому, что реально в таблице
+    haptic('error');
+    if (err.offline) { // такое действие без сети не выполнить — возвращаем экран как было
+      ui.offline = true;
+      toast('Нет сети — не сохранилось', true);
+      if (restoreSnap()) render();
+    } else {
+      toast('Не сохранилось: ' + err.message, true);
+      reload(); // вернуть экран к тому, что реально в таблице
+    }
     throw err;
   });
   chain = p.catch(() => {});
-  return p.catch(() => null); // null = не сохранилось (ошибка уже показана)
+  return p.catch(() => null); // null = не сохранилось (ошибка уже показана); 'queued' = ждёт сети
+}
+
+function applyData(data) {
+  if (!data) return;
+  if (data.owner && !pending.own) state.owner = data.owner;
+  if (data.maid) state.maid = data.maid;
+  else if (data.item) state.maid = null; // деньги могли измениться — перезагрузим при открытии вкладки
+  if (data.items) { if (!inflight) state = Object.assign(data, { owner: data.owner || state.owner, maid: data.maid || state.maid }); }
+  else if (data.item && !pending[data.item.key]) {
+    const i = state.items.findIndex(x => x.key === data.item.key);
+    if (i >= 0) state.items[i] = data.item;
+  } else if (data.reminders && !pending.rem) state.reminders = data.reminders;
 }
 
 let loading = false;
+function setStale(v) { ui.stale = v; document.body.classList.toggle('stale', !!v); }
+
 async function reload() {
   if (loading) return;
   loading = true;
-  if (!inflight) setSync('Загрузка…');
+  if (!inflight) setSync(ui.stale ? 'Обновляю…' : 'Загрузка…');
   try {
+    await flushQueue(); // сначала — то, что ждало сети
     const data = await withRetry(() => call('list'));
     if (!inflight) {
+      const wasStale = ui.stale;
       state = Object.assign(data, { owner: state && state.owner, maid: state && state.maid });
+      loadQueue().forEach(q => applyLocal(q.action, q.extra, true)); // если что-то ещё не ушло
+      syncedAt = Date.now(); ui.offline = false; setStale(false);
       if (!ui.sel) { ui.sel = state.today; ui.month = state.today.slice(0, 7); }
-      render(); setSync('');
-      if (ui.tab !== 'clean') { if (ownerView()) loadOwner(); else loadMaid(); }
+      render(); setSync(''); saveSnap();
+      // вкладки: подгружаем в фоне; если были показаны с прошлого раза — тихо обновляем
+      if (ui.tab !== 'clean' && !wasStale) { if (ownerView()) loadOwner(); else loadMaid(); }
+      else setTimeout(() => prefetchTabs(wasStale), 300);
     }
   } catch (e) {
-    setSync(''); toast(e.message, true);
-    if (!state) document.getElementById('list').innerHTML = '<p class="empty">' + esc(e.message) + '</p>';
+    setStale(false);
+    if (/^Нет доступа/.test(e.message)) { // доступ закрыли — стираем всё, что хранилось на телефоне
+      STORE.wipe(); state = null; setSync(''); document.body.classList.remove('owner');
+      document.getElementById('tabs').innerHTML = '';
+      document.getElementById('list').innerHTML = '<p class="empty">' + esc(e.message) + '</p>';
+      return;
+    }
+    if (e.offline && state) {
+      ui.offline = true; render(); setSync('');
+      toast('Нет сети. Показан график от ' + fmtAt(syncedAt) + '. Нажатия сохранятся и отправятся, когда появится сеть.');
+      scheduleFlush();
+    } else {
+      setSync(''); toast(e.message, true);
+      if (!state) document.getElementById('list').innerHTML = '<p class="empty">' + esc(e.message) + '</p>';
+      else render();
+    }
   } finally { loading = false; }
 }
 
-async function loadOwner() {
-  if (ui.ownerLoading) return;
-  ui.ownerLoading = true; setSync('Загрузка…'); render();
-  try {
-    const d = await withRetry(() => call('owner'));
-    if (!pending.own) state.owner = d.owner;
-    setSync('');
-  } catch (e) { setSync(''); toast(e.message, true); }
-  finally { ui.ownerLoading = false; render(); }
+// вкладки «Брони/Деньги/Доходы» (Иван) и «Деньги/Заработок» (горничная) грузятся в фоне сразу после графика,
+// поэтому при переходе на вкладку данные уже на экране. quiet = без «Загрузка…» и без перерисовки.
+function loadTab(kind, quiet) {
+  const key = kind === 'owner' ? 'ownerP' : 'maidP';
+  if (!ui[key]) {
+    if (!quiet) { setSync('Загрузка…'); render(); }
+    ui[key] = withRetry(() => call(kind)).then(d => {
+      if (kind === 'owner' && !pending.own) state.owner = d.owner;
+      if (kind === 'maid' && !pending.maid) state.maid = d.maid;
+      saveSnap();
+    }).catch(e => { if (!quiet) toast(e.message, true); })
+      .finally(() => { ui[key] = null; });
+  } else if (!quiet) setSync('Загрузка…');
+  return ui[key].then(() => { if (!quiet || ui.tab !== 'clean') { setSync(''); render(); } });
+}
+function loadOwner() { return loadTab('owner'); }
+function prefetchTabs(refresh) {
+  if (!state) return;
+  if (isOwner()) { if (!state.owner || refresh) loadTab('owner', true); }
+  else if (!state.maid || refresh) loadTab('maid', true);
+}
+
+function skeleton() {
+  const d = new Date(), p2 = n => ('0' + n).slice(-2);
+  const iso = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  const keepSel = ui.sel, keepMonth = ui.month;
+  ui.sel = iso; ui.month = iso.slice(0, 7);
+  state = { today: iso, items: [], reminders: [], until: addDays(iso, 62) };
+  const h = calendar();
+  state = null; ui.sel = keepSel; ui.month = keepMonth;
+  document.getElementById('list').innerHTML = h + '<h2>' + esc(dayTitle(iso)) + ' · сегодня</h2>' +
+    '<div class="card"><div class="skel"><i></i><i></i><i></i><i></i></div></div>';
 }
 
 /* ---------- календарь ---------- */
@@ -583,7 +837,7 @@ function card(it) {
   it.purchases.forEach(p => {
     h += '<div class="buy"><span>' + money(p.amount) + ' BYN' + (p.what ? ' — ' + esc(p.what) : '') +
       (p.receipt ? ' 🧾' : ' <span class="muted">без чека</span>') + '</span>' +
-      (p.saving ? '<span class="muted">сохраняю…</span>' :
+      (p.saving ? '<span class="muted">' + (p.queued ? 'ждёт сети' : 'сохраняю…') + '</span>' :
         '<button class="x" data-act="delBuy" data-key="' + k + '" data-id="' + esc(p.id) + '">✕</button>') + '</div>';
   });
   if (ui.open['buy|' + it.key]) {
@@ -637,7 +891,7 @@ function problemBlock(it, k) {
   let h = '';
   (it.problems || []).forEach(p => {
     h += '<div class="prob">⚠️ ' + esc(p.text || 'фото') + (p.url || p.photo ? ' 📷' : '') +
-      ' <span class="muted">' + (p.saving ? 'отправляю…' : 'отправлено ' + esc(String(p.created || '').slice(-5))) + '</span></div>';
+      ' <span class="muted">' + (p.saving ? (p.queued ? 'ждёт сети' : 'отправляю…') : 'отправлено ' + esc(String(p.created || '').slice(-5))) + '</span></div>';
   });
   if (ui.open['prob|' + it.key]) {
     h += '<div class="form"><label class="file">Фото проблемы<input id="pf-' + k + '" type="file" accept="image/*"></label>' +
@@ -883,13 +1137,7 @@ function tabMaidMore(m) {
     (isOwner() ? '<div class="box"><button class="btn sec" data-act="asMaid">Вернуться в свой режим</button></div>' : '');
 }
 
-async function loadMaid() {
-  if (ui.maidLoading) return;
-  ui.maidLoading = true; setSync('Загрузка…'); render();
-  try { const d = await withRetry(() => call('maid')); if (!pending.maid) state.maid = d.maid; setSync(''); }
-  catch (e) { setSync(''); toast(e.message, true); }
-  finally { ui.maidLoading = false; render(); }
-}
+function loadMaid() { return loadTab('maid'); }
 
 function renderTabs() {
   document.body.classList.toggle('owner', !!state);
@@ -909,7 +1157,7 @@ function reminders(iso) {
   if (!list.length) h += '<div class="muted">Пока нет</div>';
   list.forEach(r => {
     h += '<div class="rem"><span>' + (r.time ? '🔔 <b>' + esc(r.time) + '</b> · ' : '') + esc(r.text) + '</span>' +
-      (r.saving ? '<span class="muted">сохраняю…</span>' :
+      (r.saving ? '<span class="muted">' + (r.queued ? 'ждёт сети' : 'сохраняю…') + '</span>' :
         '<button class="x" data-act="remDel" data-id="' + esc(r.id) + '">✕</button>') + '</div>';
   });
   h += '<div class="form"><input id="rt-x" placeholder="Например: взять 2 комплекта белья">' +
@@ -969,6 +1217,8 @@ function keepInputs(list, draw) {
   Object.keys(typed).forEach(id => { const el = document.getElementById(id); if (el) { el.value = typed[id]; el.dataset.dirty = '1'; } });
   Object.keys(files).forEach(id => { const el = document.getElementById(id); if (el) el.replaceWith(files[id]); });
   if (focusId) { const el = document.getElementById(focusId); if (el && el.focus) el.focus(); }
+  applyDrafts();
+  savePrefs();
 }
 
 /** Сжимаем фото чека до ~1600 px, чтобы быстро загружалось. */
@@ -990,8 +1240,14 @@ function compress(file) {
 
 /* ---------- нажатия ---------- */
 const listEl = document.getElementById('list');
-listEl.addEventListener('input', e => { e.target.dataset.dirty = '1'; });
-listEl.addEventListener('change', e => { e.target.dataset.dirty = '1'; });
+listEl.addEventListener('input', e => {
+  e.target.dataset.dirty = '1';
+  if (e.target.id && DRAFT_RE.test(e.target.id)) setDraft(e.target.id, e.target.value);
+});
+listEl.addEventListener('change', e => {
+  e.target.dataset.dirty = '1';
+  if (e.target.id && DRAFT_RE.test(e.target.id)) setDraft(e.target.id, e.target.value);
+});
 
 document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]');
@@ -1016,7 +1272,7 @@ async function ownerClick(a, b) {
     it.timeChange = v('tc-' + key); it.note = v('nt-' + key);
     it.changed = !!it.timeChange; it.fromIvan = [it.timeChange, it.note].filter(Boolean).join(' · ');
     Object.assign(it, itemTimes(it.timeChange));
-    undirty('tc-' + key); undirty('nt-' + key); haptic('success');
+    undirty('tc-' + key); undirty('nt-' + key); clearDrafts('tc-' + key, 'nt-' + key); haptic('success');
     send('ownerNote', { key: key, timeChange: it.timeChange, note: it.note }, key,
       it.timeChange || it.note ? 'Сохранено, горничная получит сообщение' : 'Сохранено');
     return true;
@@ -1092,6 +1348,7 @@ listEl.addEventListener('click', async e => {
   const clean = id => { const el = field(id); if (el) { delete el.dataset.dirty; el.value = ''; } };
   const ok = () => haptic('success');
   if (a !== 'day' && a !== 'month') tap();
+  if (ui.stale && MUTATING.indexOf(a) >= 0) { toast('Секунду, обновляю данные…'); return; }
   if (isOwner() && await ownerClick(a, b)) return;
   if (a === 'maidSync') { setSync('Обновляю…'); send('maidSync', {}, 'maid', 'Информация обновлена'); return; }
 
@@ -1136,24 +1393,30 @@ listEl.addEventListener('click', async e => {
   }
   if (a === 'comment') {
     const el = field('cm'); if (el) delete el.dataset.dirty;
+    clearDrafts('cm-' + key);
     it.comment = val('cm'); ok();
     return send('comment', { key: key, text: it.comment }, key, 'Заметка сохранена');
   }
-  if (a === 'buyToggle') { ui.open['buy|' + key] = !ui.open['buy|' + key]; return render(); }
+  if (a === 'buyToggle') {
+    ui.open['buy|' + key] = !ui.open['buy|' + key];
+    if (!ui.open['buy|' + key]) { clearDrafts('ba-' + key, 'bw-' + key); undirty('ba-' + key); undirty('bw-' + key); }
+    return render();
+  }
   if (a === 'buySave') {
     const amount = val('ba').replace(',', '.');
     if (!(Number(amount) > 0)) return toast('Укажите сумму в BYN, например 12,50', true);
     const fileEl = field('bf');
     const file = fileEl && fileEl.files && fileEl.files[0];
     if (!file && !(await confirmBox('Сохранить без фото чека?'))) return;
-    const what = val('bw');
+    const what = val('bw'), cid = newCid();
     ui.open['buy|' + key] = false;
-    it.purchases.push({ id: 'tmp' + Date.now(), amount: Number(amount), what: what, receipt: !!file, saving: true });
+    clearDrafts('ba-' + key, 'bw-' + key); undirty('ba-' + key); undirty('bw-' + key);
+    it.purchases.push({ id: cid, amount: Number(amount), what: what, receipt: !!file, saving: true });
     ok(); render();
     let photo = '';
     try { if (file) photo = await compress(file); }
-    catch (err) { it.purchases = it.purchases.filter(p => !p.saving); render(); return toast(err.message, true); }
-    return send('purchase', { key: key, amount: amount, what: what, photo: photo }, key);
+    catch (err) { it.purchases = it.purchases.filter(p => p.id !== cid); render(); return toast(err.message, true); }
+    return send('purchase', { key: key, amount: amount, what: what, photo: photo, cid: cid }, key);
   }
   if (a === 'delBuy') {
     if (!(await confirmBox('Удалить эту покупку?'))) return;
@@ -1166,30 +1429,38 @@ listEl.addEventListener('click', async e => {
     pick();
     return send('outOf', { key: key, items: it.outOf }, key);
   }
-  if (a === 'probToggle') { ui.open['prob|' + key] = !ui.open['prob|' + key]; return render(); }
+  if (a === 'probToggle') {
+    ui.open['prob|' + key] = !ui.open['prob|' + key];
+    if (!ui.open['prob|' + key]) { clearDrafts('pt-' + key); undirty('pt-' + key); }
+    return render();
+  }
   if (a === 'probSend') {
     const fileEl = field('pf');
     const file = fileEl && fileEl.files && fileEl.files[0];
     const text = val('pt');
     if (!file && !text) return toast('Сфотографируйте или опишите проблему', true);
+    const cid = newCid();
     ui.open['prob|' + key] = false;
-    it.problems = (it.problems || []).concat([{ id: 'tmp' + Date.now(), text: text, photo: !!file, saving: true }]);
+    clearDrafts('pt-' + key); undirty('pt-' + key);
+    it.problems = (it.problems || []).concat([{ id: cid, text: text, photo: !!file, saving: true }]);
     ok(); render();
     let photo = '';
     try { if (file) photo = await compress(file); }
-    catch (err) { it.problems = it.problems.filter(p => !p.saving); render(); return toast(err.message, true); }
-    return send('problem', { key: key, text: text, photo: photo }, key, 'Отправлено Ивану');
+    catch (err) { it.problems = it.problems.filter(p => p.id !== cid); render(); return toast(err.message, true); }
+    return send('problem', { key: key, text: text, photo: photo, cid: cid }, key, 'Отправлено Ивану');
   }
   if (a === 'remAdd') {
     const text = val('rt'), time = val('rtm');
     if (!text) return toast('Напишите текст напоминания', true);
-    clean('rt'); clean('rtm');
-    state.reminders = (state.reminders || []).concat([{ id: 'tmp' + Date.now(), date: ui.sel, time: time, text: text, saving: true }]);
+    clean('rt'); clean('rtm'); clearDrafts('rt-x', 'rtm-x');
+    const cid = newCid();
+    state.reminders = (state.reminders || []).concat([{ id: cid, date: ui.sel, time: time, text: text, saving: true }]);
     ok();
-    return send('remAdd', { date: ui.sel, time: time, text: text }, 'rem', time ? 'Бот напомнит в ' + time : 'Добавлено');
+    return send('remAdd', { date: ui.sel, time: time, text: text, cid: cid }, 'rem', time ? 'Бот напомнит в ' + time : 'Добавлено');
   }
   if (a === 'remDel') {
-    if (String(b.dataset.id).indexOf('tmp') === 0) return;
+    const r0 = (state.reminders || []).find(r => r.id === b.dataset.id);
+    if (!r0 || r0.saving) return;
     state.reminders = state.reminders.filter(r => r.id !== b.dataset.id); ok();
     return send('remDel', { id: b.dataset.id }, 'rem');
   }
@@ -1198,6 +1469,14 @@ listEl.addEventListener('click', async e => {
 document.getElementById('refresh').addEventListener('click', () => { if (!inflight) reload(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && state && !inflight) reload(); });
 
+// старт: настройки вида и черновики → график с прошлого открытия (если не старше 2 дней) или скелет → свежие данные
+loadPrefs();
+loadDrafts();
+if (restoreSnap()) {
+  setStale(true);
+  if (!ui.sel) { ui.sel = state.today; ui.month = state.today.slice(0, 7); }
+  render(); setSync('Обновляю…');
+} else skeleton();
 reload();
 </script>
 </body>
