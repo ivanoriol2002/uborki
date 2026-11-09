@@ -726,6 +726,7 @@ function flushQueue(quiet) {
       }
       saveQueue(loadQueue().slice(1));
     }
+    if (sent && state) state.maid = null; // деньги могли измениться — вкладка перечитается
     if (sent && !quiet) toast('Отправлено, что ждало сети: ' + sent);
     if (queueLen()) scheduleFlush();
     return sent;
@@ -2090,7 +2091,7 @@ document.addEventListener('click', async e => {
   let y0 = null, d = 0;
   const reset = () => { p.classList.remove('spin'); p.style.opacity = ''; p.style.transform = ''; };
   addEventListener('touchstart', e => {
-    y0 = scrollY <= 0 && !ui.sheet && e.touches.length === 1 && !e.target.closest('.chess') ? e.touches[0].clientY : null; d = 0;
+    y0 = scrollY <= 0 && !ui.sheet && e.touches.length === 1 && !(e.target.closest && e.target.closest('.chess')) ? e.touches[0].clientY : null; d = 0;
   }, { passive: true });
   addEventListener('touchmove', e => {
     if (y0 === null) return;
