@@ -477,6 +477,14 @@ function applyTheme() {
   try { tg.setBottomBarColor(page); } catch (e) {}
 }
 applyTheme();
+// сообщаем Telegram, что страница готова, сразу — не дожидаясь загрузки его скрипта (иначе он дольше держит свою заставку)
+try {
+  const post = (t, d) => {
+    if (window.TelegramWebviewProxy) window.TelegramWebviewProxy.postEvent(t, JSON.stringify(d || {}));
+    else if (window.external && 'notify' in window.external) window.external.notify(JSON.stringify({ eventType: t, eventData: d || {} }));
+  };
+  post('web_app_ready'); post('web_app_expand');
+} catch (e) {}
 /** Скрипт Telegram загрузился (страница к этому моменту уже на экране). */
 function onTg() {
   tg = window.Telegram && window.Telegram.WebApp;
@@ -551,7 +559,7 @@ function minText(min) {
 }
 function phoneBtn(p) {
   if (!p) return '';
-  return '<a class="mini link2" href="tel:' + esc(String(p).replace(/[^\d+]/g, '')) + '">' + ic('phone') + esc(p) + '</a>';
+  return '<button class="mini link2" data-act="copyPhone" data-v="' + esc(p) + '">' + ic('copy') + esc(p) + '</button>';
 }
 /** Кнопка перехода в чат с гостем: Авито — прямо в чат, Суточно — в кабинет площадки. */
 function chatBtn(g) {
@@ -1954,6 +1962,7 @@ document.addEventListener('click', async e => {
   if (a === 'sheetClose') return closeSheet();
   if (a === 'sheet') return openSheet(b.dataset.s, key);
   if (a === 'openUrl') return openUrl(b.dataset.url);
+  if (a === 'copyPhone') { copyText(b.dataset.v); haptic('success'); return toast('Номер скопирован: ' + b.dataset.v); }
   if (a === 'chat') {
     if (b.dataset.q) toast('Гостей с таким именем несколько — проверьте, тот ли чат');
     if (b.dataset.url) return openUrl(b.dataset.url);
