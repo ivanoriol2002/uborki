@@ -382,6 +382,9 @@
   .sheet-panel::before { content: ""; display: block; width: 36px; height: 5px; border-radius: 3px; background: var(--grey); margin: 0 auto 10px; }
   .sheet-panel h3 { margin: 0 0 4px; font-size: 20px; }
   body.sheet-open { overflow: hidden; } body.sheet-open #tabs { display: none !important; }
+  .nums.tap > div { cursor: pointer; transition: transform .15s; } .nums.tap > div:active { transform: scale(.96); }
+  .nums.tap b::after { content: " ›"; color: var(--hint); font-weight: 400; }
+  .sheet-panel .big { margin-top: 6px; }
   /* сообщение с кнопкой «Отменить» */
   #toast { display: none; align-items: center; justify-content: space-between; gap: 12px; }
   #toast button { border: 0; background: none; color: var(--link); font: inherit; font-weight: 700; padding: 4px; }
@@ -1286,6 +1289,7 @@ function sheetHtml() {
       '<label class="f" style="margin-top:10px">Примечание<textarea id="nt-' + k + '" placeholder="Ключи у соседа, нужен доп. комплект…">' + esc(it.note) + '</textarea></label>' +
       '<div class="form"><button class="btn" data-act="ownerSave" data-key="' + k + '">Сохранить — горничная получит сообщение</button>' + close + '</div>';
   }
+  if (s.type === 'inc') return incSheet(s.key.split('|')[0], s.key.split('|')[1]);
   if (s.type === 'cleanAdd') return '<h3>Добавить уборку</h3><div class="muted">Генеральная или промежуточная — без выезда гостей. Горничная увидит её в графике.</div><div class="form">' +
     '<div class="grid2"><label class="f">День<input type="date" id="ca-date" value="' + esc(ui.sel) + '"></label>' +
     '<label class="f">Квартира<select id="ca-apt">' + state.apartments.map(a => '<option>' + esc(a) + '</option>').join('') + '</select></label></div>' +
@@ -1531,8 +1535,10 @@ function tabIncome(o) {
     h += '<div class="box' + (isCur ? ' cur' : '') + '">' + (isCur ? '<span class="chip-s cur-chip">Текущий месяц</span>' : '') +
       '<div class="kv"><b>' + MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) + '</b>' +
       '<span class="muted">загрузка ' + Math.min(100, Math.round(tot.nights / (days * nApt) * 100)) + '% · ' + tot.count + ' бр. · ' + tot.nights + ' н.</span></div>' +
-      '<div class="nums"><div><small>Доход</small><b>' + rub(tot.income) + '</b></div><div><small>Расходы</small><b>' + rub(tot.costRUB) +
-      '</b></div><div><small>Чистая</small><b>' + rub(tot.net) + '</b></div></div>' +
+      '<div class="nums tap"><div data-act="sheet" data-s="inc" data-key="' + ym + '|income"><small>Доход</small><b>' + rub(tot.income) +
+      '</b></div><div data-act="sheet" data-s="inc" data-key="' + ym + '|cost"><small>Расходы</small><b>' + rub(tot.costRUB) +
+      '</b></div><div data-act="sheet" data-s="inc" data-key="' + ym + '|net"><small>Чистая</small><b>' + rub(tot.net) + '</b></div></div>' +
+      '<div class="muted" style="margin:-2px 0 6px">Нажмите на сумму — откроется расшифровка</div>' +
       '<div class="muted" style="margin-bottom:4px">Расходы: уборки ' + money(tot.cleanBYN || 0) + ' · покупки ' + money(tot.buyBYN || 0) +
       ' · коммуналка ' + money(Math.round(tot.utilBYN || 0)) + ' BYN' + (tot.otherRUB ? ' · прочие ' + rub(tot.otherRUB) : '') + '</div>' +
       (rows.some(r => r.apartment !== 'ИТОГО') ? '<table class="t"><tr><th>Квартира</th><th>Ночей</th><th>Доход</th><th>Чистая</th></tr>' +
@@ -1543,6 +1549,57 @@ function tabIncome(o) {
   return h + '<div class="muted" style="padding:0 4px">Месяц — по дате заезда. Уборки, покупки и коммуналка (' +
     esc(o.settings.utilities) + ' BYN в месяц за все квартиры) переведены по курсу ' + esc(o.settings.rate) +
     '. Прочие расходы — из вкладки «Расходы».</div>';
+}
+
+/** Расшифровка плашек «Доход», «Расходы», «Чистая» за месяц. */
+function incSheet(ym, kind) {
+  const o = state.owner;
+  if (!o) return '';
+  const rows = o.income.filter(r => r.ym === ym && r.apartment !== 'ИТОГО');
+  const tot = o.income.find(r => r.ym === ym && r.apartment === 'ИТОГО') || { income: 0, costRUB: 0, net: 0, nights: 0, count: 0 };
+  const det = (o.incDetail || {})[ym] || [], rate = Number(o.settings.rate) || 28;
+  const name = MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4);
+  const line = (l, r, cls) => '<div class="ord' + (cls ? ' ' + cls : '') + '"><span>' + l + '</span><span style="white-space:nowrap">' + r + '</span></div>';
+  const close = '<div class="form"><button class="btn sec" data-act="sheetClose">Закрыть</button></div>';
+  const tabs = '<div class="seg" style="margin-top:8px">' + [['income', 'Доход'], ['cost', 'Расходы'], ['net', 'Чистая']].map(t =>
+    '<button data-act="sheet" data-s="inc" data-key="' + ym + '|' + t[0] + '" class="' + (kind === t[0] ? 'on' : '') + '" style="box-shadow:none;background:' +
+    (kind === t[0] ? '' : 'var(--bg2)') + '">' + t[1] + '</button>').join('') + '</div>';
+  let h = '<h3>' + name + '</h3>' + tabs;
+  if (kind === 'income') {
+    h += '<div class="big">' + rub(tot.income) + '</div><div class="muted">' + tot.count + ' бр. · ' + tot.nights + ' н. · в среднем ' +
+      rub(tot.nights ? tot.income / tot.nights : 0) + ' за ночь. Месяц — по дате заезда.</div>';
+    o.apartments.forEach(a => {
+      const list = det.filter(b => b.a === a), r = rows.find(x => x.apartment === a);
+      if (!list.length) return;
+      h += '<div class="grp">' + esc(a) + ' · ' + rub(r ? r.income : 0) + ' · ' + (r ? r.nights : 0) + ' н.</div>' + list.map(b =>
+        line(ddmmyy(b.ci) + '–' + ddmmyy(b.co) + ' · ' + esc(b.g || 'гость') + ' <span class="muted">· ' + esc(b.p) + ' · ' + b.n + ' н.</span>',
+          b.inc === '' ? '<span class="chip-s st-warn">сумма не указана</span>' : '<b>' + rub(b.inc) + '</b>')).join('');
+    });
+    const fee = det.reduce((s, b) => s + b.fee, 0);
+    if (!det.length) h += '<div class="muted" style="margin-top:10px">Список броней за этот месяц недоступен (показываются последние 6 месяцев).</div>';
+    if (fee) h += '<div class="muted" style="margin-top:10px">Комиссия Авито за месяц — ' + rub(fee) + '. Она уже вычтена: доход = стоимость проживания минус комиссия.</div>';
+  } else if (kind === 'cost') {
+    const sum = f => Number(tot[f]) || 0; // строка «ИТОГО» с сервера — без накопленных округлений
+    const byn = (label, f) => { const v = sum(f); return line(label + ' <span class="muted">· ' + money(v) + ' BYN × ' + rate + '</span>', '<b>' + rub(v * rate) + '</b>'); };
+    h += '<div class="big">' + rub(tot.costRUB) + '</div><div class="muted">Расходы в BYN переведены по курсу ' + rate + ' ₽.</div>' +
+      '<div class="grp">Из чего складываются</div>' + byn('Уборки', 'cleanBYN') + byn('Покупки горничной', 'buyBYN') + byn('Коммуналка', 'utilBYN') +
+      line('Прочие расходы', '<b>' + rub(sum('otherRUB')) + '</b>');
+    h += '<div class="grp">По квартирам</div>' + rows.map(r => line(esc(r.apartment) + ' <span class="muted">· уборки ' + money(r.cleanBYN || 0) + ' · покупки ' +
+      money(r.buyBYN || 0) + ' · коммуналка ' + money(Math.round(r.utilBYN || 0)) + ' BYN' + (r.otherRUB ? ' · прочие ' + rub(r.otherRUB) : '') + '</span>', '<b>' + rub(r.costRUB) + '</b>')).join('');
+    const ex = (o.expenses || []).filter(x => x.date.slice(0, 7) === ym);
+    if (ex.length) h += '<div class="grp">Прочие расходы</div>' + ex.map(x => line(ddmmyy(x.date) + ' · ' + esc(x.what || 'без описания') + ' <span class="muted">· ' +
+      esc(x.apartment && x.apartment !== 'Все' ? x.apartment : 'все квартиры') + '</span>', x.cur === 'BYN' ? money(x.amount) + ' BYN' : rub(x.amount))).join('');
+    h += '<div class="muted" style="margin-top:10px">Уборка считается одна на каждую бронь месяца (в день выезда), в том числе на будущие брони — по текущей ставке ' +
+      esc(o.settings.cleanFee) + ' BYN.</div>';
+  } else {
+    const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+    h += '<div class="big">' + rub(tot.net) + '</div><div class="muted">Доход ' + rub(tot.income) + ' − расходы ' + rub(tot.costRUB) + ' · остаётся ' +
+      pct(tot.net, tot.income) + ' от дохода · ' + rub(tot.nights ? tot.net / tot.nights : 0) + ' с ночи</div><div class="grp">По квартирам</div>' +
+      rows.map(r => line('<b>' + esc(r.apartment) + '</b> <span class="muted">· ' + rub(r.income) + ' − ' + rub(r.costRUB) + ' · ' + pct(r.net, r.income) +
+        (r.nights ? ' · ' + rub(r.net / r.nights) + ' с ночи' : '') + '</span>', '<b>' + rub(r.net) + '</b>')).join('') +
+      '<div class="muted" style="margin-top:10px">Налоги и комиссии банка сюда не входят. Комиссия Авито уже вычтена из дохода.</div>';
+  }
+  return h + close;
 }
 
 function tabExpenses(o) {
